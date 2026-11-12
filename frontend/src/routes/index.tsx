@@ -1,18 +1,28 @@
-import { createBrowserRouter, Navigate } from "react-router-dom"
+import type { ReactElement } from "react"
+import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom"
 import AppShell from "@/layouts/AppShell"
+import PegawaiShell from "@/layouts/PegawaiShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
+import BerandaPage from "@/pages/pegawai/BerandaPage"
+import SlipListPage from "@/pages/pegawai/SlipListPage"
+import SlipDetailPage from "@/pages/pegawai/SlipDetailPage"
+import PengaduanListPage from "@/pages/pegawai/PengaduanListPage"
+import PengaduanBaruPage from "@/pages/pegawai/PengaduanBaruPage"
+import PengaduanDetailPage from "@/pages/pegawai/PengaduanDetailPage"
 import type { Peran } from "@/lib/peran"
 
-const grup = (path: string, peran: Peran) => ({
+type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
+
+const grup = (path: string, peran: Peran, { shell = <AppShell />, dashboard = <Dashboard />, halaman = [] }: Opsi = {}) => ({
   element: <RoleGuard allow={[peran]} />,
   children: [
     {
-      element: <AppShell />,
+      element: shell,
       children: [
-        { path: `${path}/dashboard`, element: <Dashboard /> },
-        // tambahkan halaman peran di sini
+        { path: `${path}/dashboard`, element: dashboard },
+        ...halaman,
       ],
     },
   ],
@@ -21,7 +31,17 @@ const grup = (path: string, peran: Peran) => ({
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
-  grup("pegawai", "pegawai"),
+  grup("pegawai", "pegawai", {
+    shell: <PegawaiShell />,
+    dashboard: <BerandaPage />,
+    halaman: [
+      { path: "pegawai/slip", element: <SlipListPage /> },
+      { path: "pegawai/slip/:id", element: <SlipDetailPage /> },
+      { path: "pegawai/pengaduan", element: <PengaduanListPage /> },
+      { path: "pegawai/pengaduan/baru", element: <PengaduanBaruPage /> },
+      { path: "pegawai/pengaduan/:id", element: <PengaduanDetailPage /> },
+    ],
+  }),
   grup("kepegawaian", "kepegawaian"),
   grup("bendahara", "bendahara"),
   grup("verifikator", "verifikator"),
