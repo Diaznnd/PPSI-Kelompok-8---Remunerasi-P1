@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from "react-router-do
 import AppShell from "@/layouts/AppShell"
 import PegawaiShell from "@/layouts/PegawaiShell"
 import BendaharaShell from "@/layouts/BendaharaShell"
+import PjUnitShell from "@/layouts/PjUnitShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
@@ -21,6 +22,9 @@ import StatusPengajuanPage from "@/pages/bendahara/StatusPengajuanPage"
 import AmprahListPage from "@/pages/bendahara/AmprahListPage"
 import AmprahDetailPage from "@/pages/bendahara/AmprahDetailPage"
 import RekapitulasiPage from "@/pages/bendahara/RekapitulasiPage"
+import BerandaPjUnitPage from "@/pages/pj-unit/BerandaPjUnitPage"
+import DataPegawaiPage from "@/pages/pj-unit/DataPegawaiPage"
+import StatusPengajuanUnitPage from "@/pages/pj-unit/StatusPengajuanUnitPage"
 import type { Peran } from "@/lib/peran"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
@@ -68,6 +72,14 @@ export const router = createBrowserRouter([
     ],
   }),
   grup("verifikator", "verifikator"),
-  grup("pj-unit", "pj_unit"),
+  grup("pj-unit", "pj_unit", {
+    shell: <PjUnitShell />,
+    dashboard: <BerandaPjUnitPage />,
+    halaman: [
+      { path: "pj-unit/pegawai", element: <DataPegawaiPage /> },
+      { path: "pj-unit/status", element: <StatusPengajuanUnitPage /> },
+      { path: "pj-unit/rekapitulasi", element: <RekapitulasiPage /> },
+    ],
+  }),
   grup("upt-remunerasi", "upt_remunerasi"),
 ])
