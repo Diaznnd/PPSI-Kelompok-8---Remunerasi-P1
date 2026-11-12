@@ -2,6 +2,7 @@ import type { ReactElement } from "react"
 import { createBrowserRouter, Navigate, type RouteObject } from "react-router-dom"
 import AppShell from "@/layouts/AppShell"
 import PegawaiShell from "@/layouts/PegawaiShell"
+import BendaharaShell from "@/layouts/BendaharaShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
@@ -11,6 +12,15 @@ import SlipDetailPage from "@/pages/pegawai/SlipDetailPage"
 import PengaduanListPage from "@/pages/pegawai/PengaduanListPage"
 import PengaduanBaruPage from "@/pages/pegawai/PengaduanBaruPage"
 import PengaduanDetailPage from "@/pages/pegawai/PengaduanDetailPage"
+import BerandaBendaharaPage from "@/pages/bendahara/BerandaBendaharaPage"
+import PersiapanPerhitunganPage from "@/pages/bendahara/PersiapanPerhitunganPage"
+import HasilPratinjauPage from "@/pages/bendahara/HasilPratinjauPage"
+import KonfirmasiPengajuanPage from "@/pages/bendahara/KonfirmasiPengajuanPage"
+import PengajuanBerhasilPage from "@/pages/bendahara/PengajuanBerhasilPage"
+import StatusPengajuanPage from "@/pages/bendahara/StatusPengajuanPage"
+import AmprahListPage from "@/pages/bendahara/AmprahListPage"
+import AmprahDetailPage from "@/pages/bendahara/AmprahDetailPage"
+import RekapitulasiPage from "@/pages/bendahara/RekapitulasiPage"
 import type { Peran } from "@/lib/peran"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
@@ -43,7 +53,20 @@ export const router = createBrowserRouter([
     ],
   }),
   grup("kepegawaian", "kepegawaian"),
-  grup("bendahara", "bendahara"),
+  grup("bendahara", "bendahara", {
+    shell: <BendaharaShell />,
+    dashboard: <BerandaBendaharaPage />,
+    halaman: [
+      { path: "bendahara/perhitungan", element: <PersiapanPerhitunganPage /> },
+      { path: "bendahara/perhitungan/hasil", element: <HasilPratinjauPage /> },
+      { path: "bendahara/perhitungan/konfirmasi", element: <KonfirmasiPengajuanPage /> },
+      { path: "bendahara/perhitungan/berhasil", element: <PengajuanBerhasilPage /> },
+      { path: "bendahara/status", element: <StatusPengajuanPage /> },
+      { path: "bendahara/amprah", element: <AmprahListPage /> },
+      { path: "bendahara/amprah/:id", element: <AmprahDetailPage /> },
+      { path: "bendahara/rekapitulasi", element: <RekapitulasiPage /> },
+    ],
+  }),
   grup("verifikator", "verifikator"),
   grup("pj-unit", "pj_unit"),
   grup("upt-remunerasi", "upt_remunerasi"),
