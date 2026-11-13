@@ -4,6 +4,7 @@ import AppShell from "@/layouts/AppShell"
 import PegawaiShell from "@/layouts/PegawaiShell"
 import BendaharaShell from "@/layouts/BendaharaShell"
 import PjUnitShell from "@/layouts/PjUnitShell"
+import VerifikatorShell from "@/layouts/VerifikatorShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
@@ -25,6 +26,13 @@ import RekapitulasiPage from "@/pages/bendahara/RekapitulasiPage"
 import BerandaPjUnitPage from "@/pages/pj-unit/BerandaPjUnitPage"
 import DataPegawaiPage from "@/pages/pj-unit/DataPegawaiPage"
 import StatusPengajuanUnitPage from "@/pages/pj-unit/StatusPengajuanUnitPage"
+import BerandaVerifikatorPage from "@/pages/verifikator/BerandaVerifikatorPage"
+import VerifikasiPengajuanListPage from "@/pages/verifikator/VerifikasiPengajuanListPage"
+import PemeriksaanPengajuanPage from "@/pages/verifikator/PemeriksaanPengajuanPage"
+import PerubahanJabatanListPage from "@/pages/verifikator/PerubahanJabatanListPage"
+import DetailUsulanJabatanPage from "@/pages/verifikator/DetailUsulanJabatanPage"
+import PantauStatusPage from "@/pages/verifikator/PantauStatusPage"
+import JejakAuditPage from "@/pages/verifikator/JejakAuditPage"
 import type { Peran } from "@/lib/peran"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
@@ -71,7 +79,18 @@ export const router = createBrowserRouter([
       { path: "bendahara/rekapitulasi", element: <RekapitulasiPage /> },
     ],
   }),
-  grup("verifikator", "verifikator"),
+  grup("verifikator", "verifikator", {
+    shell: <VerifikatorShell />,
+    dashboard: <BerandaVerifikatorPage />,
+    halaman: [
+      { path: "verifikator/pengajuan", element: <VerifikasiPengajuanListPage /> },
+      { path: "verifikator/pengajuan/:id", element: <PemeriksaanPengajuanPage /> },
+      { path: "verifikator/jabatan", element: <PerubahanJabatanListPage /> },
+      { path: "verifikator/jabatan/:id", element: <DetailUsulanJabatanPage /> },
+      { path: "verifikator/status", element: <PantauStatusPage /> },
+      { path: "verifikator/audit", element: <JejakAuditPage /> },
+    ],
+  }),
   grup("pj-unit", "pj_unit", {
     shell: <PjUnitShell />,
     dashboard: <BerandaPjUnitPage />,
