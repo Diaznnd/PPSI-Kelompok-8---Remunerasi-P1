@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-export type NavItem = { to: string; label: string; icon: LucideIcon }
+export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string } // grup = judul kelompok menu (default "MENU UTAMA")
 
 type Props = {
   home: string // rute beranda peran (mis. /bendahara/dashboard)
@@ -23,6 +23,14 @@ type Props = {
 export default function PortalShell({ home, nav, user, headerLeft, outletContext, lebar = "max-w-7xl" }: Props) {
   const { logout } = useAuth()
   const [konfirmasi, setKonfirmasi] = useState(false)
+  // kelompokkan menu berurutan berdasarkan `grup`
+  const kelompok = nav.reduce<{ judul: string; item: NavItem[] }[]>((acc, n) => {
+    const judul = n.grup ?? "MENU UTAMA"
+    const akhir = acc[acc.length - 1]
+    if (akhir && akhir.judul === judul) akhir.item.push(n)
+    else acc.push({ judul, item: [n] })
+    return acc
+  }, [])
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -38,26 +46,28 @@ export default function PortalShell({ home, nav, user, headerLeft, outletContext
         </Link>
 
         <nav className="flex-1 space-y-6 px-3 py-4">
-          <div className="space-y-1">
-            <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">MENU UTAMA</p>
-            {nav.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  cn(
-                    "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )
-                }
-              >
-                <Icon className="size-4" />
-                {label}
-              </NavLink>
-            ))}
-          </div>
+          {kelompok.map((g) => (
+            <div key={g.judul} className="space-y-1">
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">{g.judul}</p>
+              {g.item.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    cn(
+                      "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                      isActive
+                        ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )
+                  }
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
           <div className="space-y-1">
             <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">AKUN</p>
             <button onClick={() => setKonfirmasi(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10">

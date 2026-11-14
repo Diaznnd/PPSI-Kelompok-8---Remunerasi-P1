@@ -11,6 +11,7 @@ const NAV = [
   { to: "/pegawai/pengaduan", label: "Pengaduan", icon: MessageSquare },
 ]
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePeriode() {
   return useOutletContext<{ periode: string }>()
 }

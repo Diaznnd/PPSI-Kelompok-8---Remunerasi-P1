@@ -11,6 +11,21 @@ const UKURAN = 10
 const unik = <T,>(a: T[]) => [...new Set(a)]
 const GRADE_KARTU = [8, 9, 10, 11]
 
+function Pilih({ label, nilai, ubah, semua, opsi, lebar }: { label: string; nilai: string; ubah: (v: string) => void; semua: string; opsi: [string, string][]; lebar: string }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <Select value={nilai} onValueChange={ubah}>
+        <SelectTrigger className={lebar}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="semua">{semua}</SelectItem>
+          {opsi.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 export default function DataPegawaiPage() {
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
@@ -36,19 +51,6 @@ export default function DataPegawaiPage() {
   // setiap filter berubah, kembali ke halaman 1
   const filter = (set: (v: string) => void) => (v: string) => { set(v); setHal(1) }
 
-  const Pilih = ({ label, nilai, ubah, semua, opsi, lebar }: { label: string; nilai: string; ubah: (v: string) => void; semua: string; opsi: [string, string][]; lebar: string }) => (
-    <div className="space-y-1.5">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <Select value={nilai} onValueChange={filter(ubah)}>
-        <SelectTrigger className={lebar}><SelectValue /></SelectTrigger>
-        <SelectContent>
-          <SelectItem value="semua">{semua}</SelectItem>
-          {opsi.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
-        </SelectContent>
-      </Select>
-    </div>
-  )
-
   return (
     <>
       <PageHeading title="Data Pegawai dan Jabatan" desc={pjUnit.unit} />
@@ -69,10 +71,10 @@ export default function DataPegawaiPage() {
               <p className="text-[11px] text-muted-foreground">Cari NIP atau nama</p>
               <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Ketik NIP atau nama pegawai..." value={q} onChange={(e) => { setQ(e.target.value); setHal(1) }} /></div>
             </div>
-            <Pilih label="Status Kepegawaian" nilai={status} ubah={setStatus} semua="Semua status" opsi={unik(PEGAWAI_UNIT.map((p) => p.status)).map((s) => [s, s])} lebar="w-40" />
-            <Pilih label="Jabatan" nilai={jabatan} ubah={setJabatan} semua="Semua jabatan" opsi={unik(PEGAWAI_UNIT.map((p) => p.jabatan)).map((s) => [s, s])} lebar="w-52" />
-            <Pilih label="Grade" nilai={grade} ubah={setGrade} semua="Semua grade" opsi={unik(PEGAWAI_UNIT.map((p) => p.grade)).sort((a, b) => a - b).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
-            <Pilih label="Status P1" nilai={aktif} ubah={setAktif} semua="Semua" opsi={[["aktif", "Aktif"], ["nonaktif", "Tidak Aktif"]]} lebar="w-36" />
+            <Pilih label="Status Kepegawaian" nilai={status} ubah={filter(setStatus)} semua="Semua status" opsi={unik(PEGAWAI_UNIT.map((p) => p.status)).map((s) => [s, s])} lebar="w-40" />
+            <Pilih label="Jabatan" nilai={jabatan} ubah={filter(setJabatan)} semua="Semua jabatan" opsi={unik(PEGAWAI_UNIT.map((p) => p.jabatan)).map((s) => [s, s])} lebar="w-52" />
+            <Pilih label="Grade" nilai={grade} ubah={filter(setGrade)} semua="Semua grade" opsi={unik(PEGAWAI_UNIT.map((p) => p.grade)).sort((a, b) => a - b).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
+            <Pilih label="Status P1" nilai={aktif} ubah={filter(setAktif)} semua="Semua" opsi={[["aktif", "Aktif"], ["nonaktif", "Tidak Aktif"]]} lebar="w-36" />
           </div>
 
           <div className="overflow-x-auto rounded-lg border">
