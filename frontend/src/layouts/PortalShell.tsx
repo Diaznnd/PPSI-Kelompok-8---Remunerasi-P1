@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
-export type NavItem = { to: string; label: string; icon: LucideIcon; group?: string }
+export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string } // grup = judul kelompok menu (default "MENU UTAMA")
 
 type Props = {
   home: string
@@ -40,71 +40,14 @@ export default function PortalShell({
 }: Props) {
   const { logout } = useAuth()
   const [konfirmasi, setKonfirmasi] = useState(false)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("siremun_sidebar_collapsed") === "true"
-    } catch {
-      return false
-    }
-  })
-
-  const toggleSidebar = () => {
-    setCollapsed((prev) => {
-      const next = !prev
-      try {
-        localStorage.setItem("siremun_sidebar_collapsed", String(next))
-      } catch {
-        // abaikan jika storage tidak tersedia
-      }
-      return next
-    })
-  }
-
-  const groups = nav.reduce<Record<string, NavItem[]>>((result, item) => {
-    const group = item.group ?? "MENU UTAMA"
-    result[group] ??= []
-    result[group].push(item)
-    return result
-  }, {})
-
-  const navigation = (closeOnNavigate = false, isCollapsed = false) => (
-    <div className={cn(isCollapsed ? "space-y-3" : "space-y-6")}>
-      {Object.entries(groups).map(([group, items], groupIdx) => (
-        <div key={group} className="space-y-1">
-          {isCollapsed ? (
-            groupIdx > 0 && <div className="mx-2 my-2 border-t border-border/60" />
-          ) : (
-            <p className="truncate px-3 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground">
-              {group}
-            </p>
-          )}
-          {items.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              title={isCollapsed ? label : undefined}
-              onClick={() => closeOnNavigate && setMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                cn(
-                  "relative flex items-center rounded-md py-2.5 text-sm transition-colors",
-                  isCollapsed ? "justify-center px-0" : "gap-3 px-3",
-                  isActive
-                    ? isCollapsed
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                )
-              }
-            >
-              <Icon className="size-4 shrink-0" />
-              {!isCollapsed && <span className="truncate whitespace-nowrap leading-5">{label}</span>}
-            </NavLink>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
+  // kelompokkan menu berurutan berdasarkan `grup`
+  const kelompok = nav.reduce<{ judul: string; item: NavItem[] }[]>((acc, n) => {
+    const judul = n.grup ?? "MENU UTAMA"
+    const akhir = acc[acc.length - 1]
+    if (akhir && akhir.judul === judul) akhir.item.push(n)
+    else acc.push({ judul, item: [n] })
+    return acc
+  }, [])
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -132,22 +75,35 @@ export default function PortalShell({
             </div>
           )}
         </Link>
-        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-5">
-          {navigation(false, collapsed)}
-          <div className={cn("space-y-1", collapsed ? "mt-4 border-t border-border/60 pt-3" : "mt-7")}>
-            {!collapsed && (
-              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">AKUN</p>
-            )}
-            <button
-              onClick={() => setKonfirmasi(true)}
-              title={collapsed ? "Keluar" : undefined}
-              className={cn(
-                "flex w-full items-center rounded-md py-2.5 text-sm text-destructive transition-colors hover:bg-destructive/10",
-                collapsed ? "justify-center px-0" : "gap-3 px-3"
-              )}
-            >
-              <LogOut className="size-4 shrink-0" />
-              {!collapsed && <span className="truncate whitespace-nowrap">Keluar</span>}
+
+        <nav className="flex-1 space-y-6 px-3 py-4">
+          {kelompok.map((g) => (
+            <div key={g.judul} className="space-y-1">
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">{g.judul}</p>
+              {g.item.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    cn(
+                      "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                      isActive
+                        ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    )
+                  }
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
+          <div className="space-y-1">
+            <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">AKUN</p>
+            <button onClick={() => setKonfirmasi(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10">
+              <LogOut className="size-4" />
+              Keluar
             </button>
           </div>
         </nav>

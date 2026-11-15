@@ -34,6 +34,16 @@ import PerubahanJabatanListPage from "@/pages/verifikator/PerubahanJabatanListPa
 import DetailUsulanJabatanPage from "@/pages/verifikator/DetailUsulanJabatanPage"
 import PantauStatusPage from "@/pages/verifikator/PantauStatusPage"
 import JejakAuditPage from "@/pages/verifikator/JejakAuditPage"
+import KepegawaianShell from "@/layouts/KepegawaianShell"
+import BerandaKepegawaianPage from "@/pages/kepegawaian/BerandaKepegawaianPage"
+import PegawaiKepegawaianPage from "@/pages/kepegawaian/PegawaiKepegawaianPage"
+import UsulanJabatanListPage from "@/pages/kepegawaian/UsulanJabatanListPage"
+import BuatUsulanPage from "@/pages/kepegawaian/BuatUsulanPage"
+import DetailUsulanPage from "@/pages/kepegawaian/DetailUsulanPage"
+import PresensiCutiPage from "@/pages/kepegawaian/PresensiCutiPage"
+import HukumanDisiplinPage from "@/pages/kepegawaian/HukumanDisiplinPage"
+import PengaduanKepegawaianPage from "@/pages/kepegawaian/PengaduanKepegawaianPage"
+import TanggapiPengaduanPage from "@/pages/kepegawaian/TanggapiPengaduanPage"
 import type { Peran } from "@/lib/peran"
 import BerandaUptRemunerasiPage from "@/pages/upt-remunerasi/BerandaPage"
 import HitungPajakPage from "@/pages/upt-remunerasi/HitungPajakPage"
@@ -95,7 +105,20 @@ export const router = createBrowserRouter([
       { path: "pegawai/pengaduan/:id", element: <PengaduanDetailPage /> },
     ],
   }),
-  grup("kepegawaian", "kepegawaian"),
+  grup("kepegawaian", "kepegawaian", {
+    shell: <KepegawaianShell />,
+    dashboard: <BerandaKepegawaianPage />,
+    halaman: [
+      { path: "kepegawaian/pegawai", element: <PegawaiKepegawaianPage /> },
+      { path: "kepegawaian/usulan", element: <UsulanJabatanListPage /> },
+      { path: "kepegawaian/usulan/baru", element: <BuatUsulanPage /> },
+      { path: "kepegawaian/usulan/:id", element: <DetailUsulanPage /> },
+      { path: "kepegawaian/presensi", element: <PresensiCutiPage /> },
+      { path: "kepegawaian/hukuman", element: <HukumanDisiplinPage /> },
+      { path: "kepegawaian/pengaduan", element: <PengaduanKepegawaianPage /> },
+      { path: "kepegawaian/pengaduan/:id", element: <TanggapiPengaduanPage /> },
+    ],
+  }),
   grup("bendahara", "bendahara", {
     shell: <BendaharaShell />,
     dashboard: <BerandaBendaharaPage />,
