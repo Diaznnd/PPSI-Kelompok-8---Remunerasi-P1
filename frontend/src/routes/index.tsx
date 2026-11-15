@@ -5,6 +5,7 @@ import PegawaiShell from "@/layouts/PegawaiShell"
 import BendaharaShell from "@/layouts/BendaharaShell"
 import PjUnitShell from "@/layouts/PjUnitShell"
 import VerifikatorShell from "@/layouts/VerifikatorShell"
+import UptRemunerasiShell from "@/layouts/UptRemunerasiShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
@@ -44,6 +45,36 @@ import HukumanDisiplinPage from "@/pages/kepegawaian/HukumanDisiplinPage"
 import PengaduanKepegawaianPage from "@/pages/kepegawaian/PengaduanKepegawaianPage"
 import TanggapiPengaduanPage from "@/pages/kepegawaian/TanggapiPengaduanPage"
 import type { Peran } from "@/lib/peran"
+import BerandaUptRemunerasiPage from "@/pages/upt-remunerasi/BerandaPage"
+import HitungPajakPage from "@/pages/upt-remunerasi/HitungPajakPage"
+import HitungPajakDetailPage from "@/pages/upt-remunerasi/HitungPajakDetailPage"
+import AmprahPage from "@/pages/upt-remunerasi/AmprahPage"
+import UptAmprahDetailPage from "@/pages/upt-remunerasi/AmprahDetailPage"
+import UptSlipP1Page from "@/pages/upt-remunerasi/SlipP1Page"
+import UptSlipDetailPage from "@/pages/upt-remunerasi/SlipDetailPage"
+import RekapitulasiUPTPage from "@/pages/upt-remunerasi/RekapitulasiPage"
+import PantauStatusUPTPage from "@/pages/upt-remunerasi/PantauStatusPage"
+import PengaduanEskalasiPage from "@/pages/upt-remunerasi/PengaduanEskalasiPage"
+import PenetapanJabatanPage from "@/pages/upt-remunerasi/PenetapanJabatanPage"
+import MasterGradePage from "@/pages/upt-remunerasi/MasterGradePage"
+import ParameterRemunerasiPage from "@/pages/upt-remunerasi/ParameterRemunerasiPage"
+import UnitKerjaPage from "@/pages/upt-remunerasi/UnitKerjaPage"
+import AkunHakAksesPage from "@/pages/upt-remunerasi/AkunHakAksesPage"
+import JejakAuditUPTPage from "@/pages/upt-remunerasi/JejakAuditPage"
+import PeriodePembayaranPage from "@/pages/upt-remunerasi/PeriodePembayaranPage"
+import DokumenTemplatePage from "@/pages/upt-remunerasi/DokumenTemplatePage"
+import DataPegawaiUPTPage from "@/pages/upt-remunerasi/DataPegawaiPage"
+import NotifikasiSistemPage from "@/pages/upt-remunerasi/NotifikasiSistemPage"
+import AkunSayaPage from "@/pages/upt-remunerasi/AkunSayaPage"
+import PenetapanJabatanDetailPage from "@/pages/upt-remunerasi/PenetapanJabatanDetailPage"
+import UptPengaduanDetailPage from "@/pages/upt-remunerasi/PengaduanDetailPage"
+import KoreksiSusulanPage from "@/pages/upt-remunerasi/KoreksiSusulanPage"
+import BerandaSayaPage from "@/pages/upt-remunerasi/saya/BerandaSayaPage"
+import SlipSayaPage from "@/pages/upt-remunerasi/saya/SlipSayaPage"
+import SlipSayaDetailPage from "@/pages/upt-remunerasi/saya/SlipSayaDetailPage"
+import PengaduanSayaPage from "@/pages/upt-remunerasi/saya/PengaduanSayaPage"
+import PengaduanSayaBaruPage from "@/pages/upt-remunerasi/saya/PengaduanSayaBaruPage"
+import PengaduanSayaDetailPage from "@/pages/upt-remunerasi/saya/PengaduanSayaDetailPage"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
 
@@ -123,5 +154,41 @@ export const router = createBrowserRouter([
       { path: "pj-unit/rekapitulasi", element: <RekapitulasiPage /> },
     ],
   }),
-  grup("upt-remunerasi", "upt_remunerasi"),
+  grup("upt-remunerasi", "upt_remunerasi", {
+    shell: <UptRemunerasiShell />,
+    dashboard: <BerandaUptRemunerasiPage />,
+    halaman: [
+      { path: "upt-remunerasi/status", element: <PantauStatusUPTPage /> },
+      { path: "upt-remunerasi/rekapitulasi", element: <RekapitulasiUPTPage /> },
+      { path: "upt-remunerasi/hitung", element: <HitungPajakPage /> },
+      { path: "upt-remunerasi/hitung/:id", element: <HitungPajakDetailPage /> },
+      { path: "upt-remunerasi/amprah", element: <AmprahPage /> },
+      { path: "upt-remunerasi/amprah/:id", element: <UptAmprahDetailPage /> },
+      { path: "upt-remunerasi/slip", element: <UptSlipP1Page /> },
+      { path: "upt-remunerasi/slip/:id", element: <UptSlipDetailPage /> },
+      { path: "upt-remunerasi/pengaduan", element: <PengaduanEskalasiPage /> },
+      { path: "upt-remunerasi/pengaduan/:id", element: <UptPengaduanDetailPage /> },
+      { path: "upt-remunerasi/penetapan", element: <PenetapanJabatanPage /> },
+      { path: "upt-remunerasi/penetapan/:id", element: <PenetapanJabatanDetailPage /> },
+      { path: "upt-remunerasi/master-grade", element: <MasterGradePage /> },
+      { path: "upt-remunerasi/parameter", element: <ParameterRemunerasiPage /> },
+      { path: "upt-remunerasi/periode", element: <PeriodePembayaranPage /> },
+      { path: "upt-remunerasi/unit", element: <UnitKerjaPage /> },
+      { path: "upt-remunerasi/dokumen", element: <DokumenTemplatePage /> },
+      { path: "upt-remunerasi/pegawai", element: <DataPegawaiUPTPage /> },
+      { path: "upt-remunerasi/akun", element: <AkunHakAksesPage /> },
+      { path: "upt-remunerasi/penugasan", element: <Navigate to="/upt-remunerasi/akun" replace /> },
+      { path: "upt-remunerasi/hak-akses", element: <Navigate to="/upt-remunerasi/akun" replace /> },
+      { path: "upt-remunerasi/audit", element: <JejakAuditUPTPage /> },
+      { path: "upt-remunerasi/notifikasi", element: <NotifikasiSistemPage /> },
+      { path: "upt-remunerasi/akun-saya", element: <AkunSayaPage /> },
+      { path: "upt-remunerasi/koreksi", element: <KoreksiSusulanPage /> },
+      { path: "upt-remunerasi/beranda-saya", element: <BerandaSayaPage /> },
+      { path: "upt-remunerasi/slip-saya", element: <SlipSayaPage /> },
+      { path: "upt-remunerasi/slip-saya/:id", element: <SlipSayaDetailPage /> },
+      { path: "upt-remunerasi/pengaduan-saya", element: <PengaduanSayaPage /> },
+      { path: "upt-remunerasi/pengaduan-saya/baru", element: <PengaduanSayaBaruPage /> },
+      { path: "upt-remunerasi/pengaduan-saya/:id", element: <PengaduanSayaDetailPage /> },
+    ],
+  }),
 ])
