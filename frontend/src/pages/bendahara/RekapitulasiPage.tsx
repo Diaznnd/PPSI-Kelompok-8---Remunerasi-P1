@@ -7,6 +7,11 @@ import { BULAN_BRUTO, KOMPOSISI, PEGAWAI_AWAL, PERIODE_REKAP, RINGKASAN, hitung 
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
+const KONIK = (() => {
+  let akum = 0
+  return KOMPOSISI.map((k) => { const dari = akum; akum += k.persen; return `${k.warna} ${dari}% ${akum}%` }).join(", ")
+})()
+
 export default function RekapitulasiPage() {
   const [periode, setPeriode] = useState(PERIODE_REKAP[0])
   const [tab, setTab] = useState<"periode" | "bulan">("periode")
@@ -15,8 +20,6 @@ export default function RekapitulasiPage() {
   const maks = Math.max(...BULAN_BRUTO.map(([, v]) => v))
   const min = 900
 
-  let akum = 0
-  const konik = KOMPOSISI.map((k) => { const dari = akum; akum += k.persen; return `${k.warna} ${dari}% ${akum}%` }).join(", ")
   const kartu = [
     ["Total Pegawai", String(RINGKASAN.pegawai)], ["Remunerasi P1", rupiah(RINGKASAN.remP1)], ["Total Pengurangan Kehadiran", rupiah(RINGKASAN.pengurangan)],
     ["Jumlah Bruto", rupiah(RINGKASAN.bruto)], ["Pajak", rupiah(RINGKASAN.pajak)], ["Jumlah Netto", rupiah(RINGKASAN.netto)],
@@ -103,7 +106,7 @@ export default function RekapitulasiPage() {
             <h2 className="font-semibold">Komposisi Pengurangan</h2>
             <p className="text-xs text-muted-foreground">{periode}</p>
             <div className="mt-4 flex items-center gap-5">
-              <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${konik})` }}>
+              <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${KONIK})` }}>
                 <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-card text-center">
                   <span className="text-xs font-bold">Rp 36,35 Jt</span>
                   <span className="text-[8px] text-muted-foreground">Pengurangan Kehadiran</span>

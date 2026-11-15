@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { BarChart3, Eye, EyeOff, FileText, GraduationCap, Mail, ShieldCheck, Workflow } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/context/AuthContext"
-import { prefixPeran } from "@/lib/peran"
+import { labelPeran, prefixPeran } from "@/lib/peran"
+import { AKUN_MOCK } from "@/data/akun-mock"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,8 +29,9 @@ export default function LoginPage() {
     try {
       const akun = await login(username, password)
       navigate(`${prefixPeran[akun.peran]}/dashboard`, { replace: true })
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? "Gagal masuk. Periksa email dan kata sandi Anda.")
+    } catch (err) {
+      const pesan = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(pesan ?? "Gagal masuk. Periksa email dan kata sandi Anda.")
     } finally {
       setKirim(false)
     }
@@ -106,6 +108,19 @@ export default function LoginPage() {
               {kirim ? "Memproses..." : "Masuk"}
             </Button>
           </form>
+
+          {import.meta.env.VITE_MOCK_AUTH === "true" && (
+            <div className="rounded-lg border border-dashed p-3">
+              <p className="mb-2 text-[11px] font-medium text-muted-foreground">Akun demo (mode pengembangan) — klik untuk mengisi</p>
+              <div className="flex flex-wrap gap-1.5">
+                {AKUN_MOCK.map((a) => (
+                  <button key={a.id} type="button" onClick={() => { setUsername(a.username); setPassword(a.password) }} className="rounded-md border bg-card px-2 py-1 text-[11px] hover:bg-muted">
+                    {labelPeran[a.peran]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <p className="text-center text-xs text-muted-foreground">
             Lupa kata sandi atau akun belum aktif? <span className="font-semibold text-primary">Hubungi UPT Remunerasi.</span>
