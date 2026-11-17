@@ -1,5 +1,6 @@
 import { useState } from "react"
-import { FileCheck2, Gauge, GitCompareArrows, History, ListChecks } from "lucide-react"
+import { FileCheck2, FileText, Gauge, GitCompareArrows, History, LayoutGrid, ListChecks, MessageSquare } from "lucide-react"
+import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PERIODE_AKTIF_VERIFIKATOR, PERIODE_VERIFIKATOR, verifikator } from "@/data/dummy-verifikator"
@@ -12,13 +13,41 @@ const NAV = [
   { to: "/verifikator/audit", label: "Jejak Audit", icon: ListChecks },
 ]
 
+const NAV_PORTAL_PEGAWAI = [
+  { to: "/pegawai/slip", label: "Slip P1 Saya", icon: FileText },
+  { to: "/pegawai/pengaduan", label: "Pengaduan Saya", icon: MessageSquare },
+  { to: "/pegawai/dashboard", label: "Portal Pegawai", icon: LayoutGrid },
+]
+
 export default function VerifikatorShell() {
+  const { akun } = useAuth()
   const [periode, setPeriode] = useState(PERIODE_AKTIF_VERIFIKATOR)
+
+  const nama = akun?.nama || verifikator.nama
+  const inisial =
+    nama
+      .split(" ")
+      .map((s) => s[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "VF"
+
+  const unitNama = akun?.unit_nama || "UPT Remunerasi"
+
   return (
     <PortalShell
       home="/verifikator/dashboard"
       nav={NAV}
-      user={{ nama: verifikator.nama, inisial: verifikator.inisial, peran: "Verifikator" }}
+      secondaryNav={{
+        title: "PORTAL MANDIRI PEGAWAI",
+        items: NAV_PORTAL_PEGAWAI,
+      }}
+      user={{
+        nama,
+        inisial,
+        peran: "Verifikator",
+        unit: unitNama,
+      }}
       headerLeft={
         <>
           <span className="hidden text-sm text-muted-foreground sm:inline">Periode:</span>

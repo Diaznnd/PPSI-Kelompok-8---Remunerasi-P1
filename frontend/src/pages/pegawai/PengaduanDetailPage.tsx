@@ -1,19 +1,64 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Check, CheckCircle2, Clock, ExternalLink, Paperclip, Send } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { PageHeading, Panel, StatusBadge } from "@/components/pegawai/shared"
-import { DAFTAR_PENGADUAN, LANGKAH_PENGADUAN, PESAN_AWAL, pegawai, type Pesan } from "@/data/dummy-pegawai"
 import { cn } from "@/lib/utils"
+import { pegawaiService } from "@/services/pegawaiService"
 
-const inisial = (n: string) => (n === "Anda" ? pegawai.inisial : n.split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase())
+type Pesan = {
+  dari: string
+  waktu: string
+  teks: string
+  lampiran?: string
+}
+
+const inisial = (n: string) => {
+  if (n === "Anda") return "A"
+  return n.split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase()
+}
 
 export default function PengaduanDetailPage() {
   const { id } = useParams()
-  const p = DAFTAR_PENGADUAN.find((x) => x.nomor === id)
-  const [pesan, setPesan] = useState<Pesan[]>(PESAN_AWAL)
+  const [p, setP] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [pesan, setPesan] = useState<Pesan[]>([])
   const [teks, setTeks] = useState("")
+
+  useEffect(() => {
+    const fetchDetail = async () => {
+      if (!id) return
+      try {
+        setLoading(true)
+        const result = await pegawaiService.getPengaduanDetail(id)
+        setP(result)
+        // Transform tanggapan to pesan format
+        if (result.tanggapan && Array.isArray(result.tanggapan)) {
+          const messages = result.tanggapan.map((t: any) => ({
+            dari: t.DariRole || 'System',
+            waktu: new Date(t.TanggalTanggapan).toLocaleString('id-ID'),
+            teks: t.Isi,
+            lampiran: t.FileLampiran
+          }))
+          setPesan(messages)
+        }
+      } catch (error) {
+        console.error('Failed to load pengaduan detail:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDetail()
+  }, [id])
+
+  if (loading) {
+    return (
+      <Panel>
+        <p className="text-sm">Memuat data pengaduan...</p>
+      </Panel>
+    )
+  }
 
   if (!p) {
     return (
@@ -24,7 +69,7 @@ export default function PengaduanDetailPage() {
     )
   }
 
-  const selesai = p.status === "Selesai"
+  const selesai = p.StatusPengaduan === "Selesai"
 
   function kirim() {
     if (!teks.trim()) return
@@ -32,6 +77,9 @@ export default function PengaduanDetailPage() {
     setTeks("")
     toast.success("Keterangan terkirim.")
   }
+
+  // Parse timeline from riwayat_status
+  const timeline = p.riwayat_status || []
 
   return (
     <>
@@ -45,14 +93,14 @@ export default function PengaduanDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-xs text-muted-foreground">Nomor Pengaduan</p>
-              <p className="mt-1 text-2xl font-semibold">{p.nomor}</p>
+              <p className="mt-1 text-2xl font-semibold">{p.NomorPengaduan}</p>
             </div>
-            <StatusBadge status={p.status} />
+            <StatusBadge status={p.StatusPengaduan} />
           </div>
           <div className="mt-5 grid gap-4 border-t pt-5 sm:grid-cols-3">
-            <div><p className="text-xs text-muted-foreground">Kategori</p><p className="text-sm font-semibold">{p.kategori}</p></div>
-            <div><p className="text-xs text-muted-foreground">Periode</p><p className="text-sm font-semibold">{p.periode}</p></div>
-            <div><p className="text-xs text-muted-foreground">Tanggal diajukan</p><p className="text-sm font-semibold">{p.tanggal}</p></div>
+            <div><p className="text-xs text-muted-foreground">Kategori</p><p className="text-sm font-semibold">{p.Kategori}</p></div>
+            <div><p className="text-xs text-muted-foreground">Periode</p><p className="text-sm font-semibold">{p.Periode}</p></div>
+            <div><p className="text-xs text-muted-foreground">Tanggal diajukan</p><p className="text-sm font-semibold">{new Date(p.TanggalPengaduan).toLocaleDateString('id-ID')}</p></div>
           </div>
         </Panel>
 
@@ -61,12 +109,12 @@ export default function PengaduanDetailPage() {
           <Panel>
             <h2 className="font-semibold">Linimasa Pengaduan</h2>
             <ol className="mt-5">
-              {LANGKAH_PENGADUAN.map((l, i) => {
-                const done = i < p.langkahSelesai
-                const current = i === p.langkahSelesai
+              {timeline.map((l: any, i: number) => {
+                const done = i < timeline.length - 1
+                const current = i === timeline.length - 1
                 return (
-                  <li key={l.label} className="relative flex gap-3 pb-7 last:pb-0">
-                    {i < LANGKAH_PENGADUAN.length - 1 && <span className="absolute left-[13px] top-8 h-[calc(100%-2rem)] w-px bg-border" />}
+                  <li key={l.IDRiwayat} className="relative flex gap-3 pb-7 last:pb-0">
+                    {i < timeline.length - 1 && <span className="absolute left-[13px] top-8 h-[calc(100%-2rem)] w-px bg-border" />}
                     <span
                       className={cn(
                         "z-10 flex size-7 shrink-0 items-center justify-center rounded-full border-2",
@@ -78,12 +126,10 @@ export default function PengaduanDetailPage() {
                       {done ? <Check className="size-4" /> : current ? <Clock className="size-3.5" /> : null}
                     </span>
                     <div className={cn(!done && !current && "opacity-60")}>
-                      <p className="text-sm font-semibold leading-tight">{l.label}</p>
-                      {(done || current) && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {l.waktu}<br />{l.oleh}
-                        </p>
-                      )}
+                      <p className="text-sm font-semibold leading-tight">{l.Status}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {new Date(l.TanggalStatus).toLocaleString('id-ID')}<br />{l.Oleh || 'System'}
+                      </p>
                     </div>
                   </li>
                 )
@@ -93,6 +139,25 @@ export default function PengaduanDetailPage() {
 
           {/* Percakapan */}
           <div className="space-y-4">
+            {/* Konten awal pengaduan */}
+            <div className="flex gap-3 flex-row-reverse">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">A</span>
+              <div className="w-full rounded-xl border p-4 text-sm bg-primary/10">
+                <div className="flex justify-between gap-2 text-[11px]">
+                  <span className="font-semibold">Anda</span>
+                  <span className="text-muted-foreground">{new Date(p.TanggalPengaduan).toLocaleString('id-ID')}</span>
+                </div>
+                <p className="mt-1.5 text-xs leading-relaxed">{p.Isi}</p>
+                {p.FileLampiran && (
+                  <div className="mt-3 flex justify-center">
+                    <span className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-[11px] text-primary">
+                      <Paperclip className="size-3" /> {p.FileLampiran} <ExternalLink className="size-3" />
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {pesan.map((m, i) => {
               const saya = m.dari === "Anda"
               return (

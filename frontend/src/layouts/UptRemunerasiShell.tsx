@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"
 import {
   Activity,
   AlertCircle,
@@ -70,9 +71,26 @@ export const NAV_UPT: { to: string; label: string; icon: LucideIcon; group: stri
 ]
 
 export default function UptRemunerasiShell() {
+  const { akun } = useAuth()
   const navigate = useNavigate()
   const [periode, setPeriode] = useState(periodeUPT[0])
   const [notifikasi, setNotifikasi] = useState<NotifikasiItem[]>(notifikasiSistem)
+
+  const nama = akun?.nama || uptRemunerasi.nama
+  const inisial =
+    nama
+      .split(" ")
+      .map((s) => s[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "UR"
+
+  const user = {
+    nama,
+    inisial,
+    peran: "UPT Remunerasi",
+    unit: akun?.unit_nama || uptRemunerasi.unit,
+  }
 
   const unreadCount = notifikasi.filter((n) => !n.dibaca).length
 
@@ -90,7 +108,7 @@ export default function UptRemunerasiShell() {
       <PortalShell
         home="/upt-remunerasi/dashboard"
         nav={NAV_UPT}
-        user={uptRemunerasi}
+        user={user}
         lebar="max-w-[1500px]"
         outletContext={{ periode, setPeriode }}
         headerLeft={

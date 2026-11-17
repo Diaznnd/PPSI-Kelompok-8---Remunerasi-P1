@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react"
-import { Download, Printer, BarChart3, PieChart } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Download, Printer, BarChart3, PieChart, Loader2 } from "lucide-react"
 import {
   PageHeader,
   StatusBadge,
@@ -13,13 +13,14 @@ import {
   usePeriode,
 } from "./components"
 import {
-  pengajuanUPT,
   pegawaiHitungSample,
   dokumenConfigInitial,
   rupiah,
   type UPTPengajuan,
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { toast } from "sonner"
 
 const TREN_BULANAN = [
   { bulan: "Mei 2026", netto: 4_120_000_000 },
@@ -32,21 +33,54 @@ const TREN_BULANAN = [
 
 export default function RekapitulasiUPTPage() {
   const { periode } = usePeriode()
+  const [loading, setLoading] = useState(true)
+  const [pengajuanData, setPengajuanData] = useState<UPTPengajuan[]>([])
   const [activeTab, setActiveTab] = useState<"periode" | "tahunan">("periode")
   const [selectedUnit, setSelectedUnit] = useState<UPTPengajuan | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
   const [isPrintOpen, setIsPrintOpen] = useState(false)
 
+  useEffect(() => {
+    loadRekapitulasi()
+  }, [periode])
+
+  const loadRekapitulasi = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getLaporanRekapitulasi(periode)
+      
+      // Map API response
+      const mapped: UPTPengajuan[] = (res.data?.unit_list || []).map((item: any) => ({
+        id: item.id || item.pengajuan_id || "-",
+        unit: item.unit || item.unit_nama || "-",
+        periode: periode,
+        pegawai: item.pegawai || item.jumlah_pegawai || 0,
+        total: item.total || item.p1_gross || 0,
+        netto: item.netto || item.p1_netto || 0,
+        status: item.status || "draft",
+        diajukanPada: item.diajukan_pada || item.created_at || "-",
+      }))
+      
+      setPengajuanData(mapped)
+    } catch (error: any) {
+      console.error("Error loading rekapitulasi:", error)
+      toast.error("Gagal memuat data rekapitulasi")
+      setPengajuanData([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const summary = useMemo(() => {
-    const totalPegawai = pengajuanUPT.reduce((s, p) => s + p.pegawai, 0)
-    const totalGross = pengajuanUPT.reduce((s, p) => s + p.total, 0)
-    const totalPengurangan = pengajuanUPT.reduce((s, p) => s + Math.round(p.total * 0.025), 0)
+    const totalPegawai = pengajuanData.reduce((s, p) => s + p.pegawai, 0)
+    const totalGross = pengajuanData.reduce((s, p) => s + p.total, 0)
+    const totalPengurangan = pengajuanData.reduce((s, p) => s + Math.round(p.total * 0.025), 0)
     const totalBruto = totalGross - totalPengurangan
-    const totalPajak = pengajuanUPT.reduce((s, p) => s + (p.total - p.netto - Math.round(p.total * 0.025)), 0)
-    const totalNetto = pengajuanUPT.reduce((s, p) => s + p.netto, 0)
+    const totalPajak = pengajuanData.reduce((s, p) => s + (p.total - p.netto - Math.round(p.total * 0.025)), 0)
+    const totalNetto = pengajuanData.reduce((s, p) => s + p.netto, 0)
     return { totalPegawai, totalGross, totalPengurangan, totalBruto, totalPajak, totalNetto }
-  }, [])
+  }, [pengajuanData])
 
   const maxTrenNetto = Math.max(...TREN_BULANAN.map((t) => t.netto))
 
@@ -71,7 +105,7 @@ export default function RekapitulasiUPTPage() {
           </tr>
         </thead>
         <tbody>
-          {pengajuanUPT.map((item) => {
+          {pengajuanData.map((item) => {
             const pot = Math.round(item.total * 0.025)
             const pajak = item.total - item.netto - pot
             return (
@@ -124,6 +158,14 @@ export default function RekapitulasiUPTPage() {
       </div>
     </div>
   )
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -208,7 +250,7 @@ export default function RekapitulasiUPTPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {pengajuanUPT.map((item) => {
+                {pengajuanData.map((item) => {
                   const pot = Math.round(item.total * 0.025)
                   const pajak = item.total - item.netto - pot
                   const belumMengajukan = item.status === "draft"

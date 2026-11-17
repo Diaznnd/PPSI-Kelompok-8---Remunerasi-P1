@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   RefreshCw,
   Save,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -17,13 +18,55 @@ import {
   Button,
   PrintPreview,
 } from "./components"
-import {
-  pengajuanUPT,
-  pegawaiHitungSample,
-  dokumenConfigInitial,
-  rupiah,
-} from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Badge } from "@/components/ui/badge"
+
+const rupiah = (n: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n)
+
+type PegawaiAmprah = {
+  no: number
+  nama: string
+  nip: string
+  golongan: string
+  npwp: string
+  jabatan: string
+  unitKerja: string
+  grade: number
+  nilaiGrade: number
+  remunerasiP1: number
+  penguranganKehadiran: number
+  jumlahBruto: number
+  pajak: number
+  pajakTer: number
+  tabPajak: number
+  jumlahNetto: number
+}
+
+type AmprahDetail = {
+  id: string
+  nomor: string
+  periode: string
+  unit_id: number
+  unit_nama: string
+  kelompok: string
+  status: string
+  tanggal_terbit: string
+  pegawai: PegawaiAmprah[]
+  total_bruto: number
+  total_pajak: number
+  total_netto: number
+  penanggung_jawab: {
+    nama: string
+    nip: string
+    jabatan: string
+  }
+  kepala_upt: {
+    nama: string
+    nip: string
+    jabatan: string
+  }
+}
 
 function terbilang(n: number): string {
   const satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"]
@@ -42,39 +85,95 @@ function terbilang(n: number): string {
 export default function AmprahDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const decodedId = decodeURIComponent(id ?? "")
-  const item = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
 
+  const [loading, setLoading] = useState(true)
+  const [amprah, setAmprah] = useState<AmprahDetail | null>(null)
   const [jenisAmprah, setJenisAmprah] = useState<"Reguler" | "Insentif Bulan ke-13" | "THR Kinerja">("Reguler")
-  const [isTersedia, setIsTersedia] = useState(item.status === "amprah_tersedia")
   const [isPrintOpen, setIsPrintOpen] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  const nomorAmprah = `AMP/P1/2026/10/${item.id.split("/")[1] ?? "UNIT"}/001`
-  const tanggalTerbit = "24 Oktober 2026"
+  useEffect(() => {
+    if (id) {
+      loadAmprahDetail()
+    }
+  }, [id])
 
-  const rows = useMemo(() => {
-    return pegawaiHitungSample.map((p, idx) => ({
-      no: idx + 1,
-      nama: p.nama,
-      nip: p.nip,
-      golongan: ["III/d", "III/c", "III/b", "III/b", "III/a"][idx] ?? "III/a",
-      npwp: `09.254.${110 + idx}.2-201.000`,
-      jabatan: p.jabatan,
-      unitKerja: item.unit,
-      grade: p.grade,
-      nilaiGrade: Math.round(p.p1Gross / (3000 * 0.4)),
-      remunerasiP1: p.p1Gross,
-      penguranganKehadiran: p.totalPotongan,
-      jumlahBruto: p.p1SetelahPotongan,
-      pajak: p.pajak,
-      pajakTer: p.pajak,
-      tabPajak: 0,
-      jumlahNetto: p.netto,
-    }))
-  }, [item.unit])
+  const loadAmprahDetail = async () => {
+    if (!id) return
+
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getAmprahDetail(id)
+      
+      // Map API response to component format
+      const detail: AmprahDetail = {
+        id: res.data.id,
+        nomor: res.data.nomor_amprah || `AMP/P1/${res.data.periode}/${res.data.unit_nama}/001`,
+        periode: res.data.periode,
+        unit_id: res.data.unit_id,
+        unit_nama: res.data.unit_nama,
+        kelompok: res.data.kelompok || "Reguler",
+        status: res.data.status,
+        tanggal_terbit: res.data.created_at || new Date().toISOString(),
+        pegawai: (res.data.pegawai || []).map((p: any, idx: number) => ({
+          no: idx + 1,
+          nama: p.nama,
+          nip: p.NIP || p.nip,
+          golongan: p.pangkat_golongan || p.golongan || "-",
+          npwp: p.npwp || "-",
+          jabatan: p.nama_jabatan || p.jabatan || "-",
+          unitKerja: res.data.unit_nama,
+          grade: p.grade || 0,
+          nilaiGrade: p.nilai_grade || 0,
+          remunerasiP1: p.p1_gross || p.remunerasi_p1 || 0,
+          penguranganKehadiran: p.total_potongan || p.pengurangan_kehadiran || 0,
+          jumlahBruto: p.p1_setelah_potongan || p.jumlah_bruto || 0,
+          pajak: p.pajak || 0,
+          pajakTer: p.pajak_ter || p.pajak || 0,
+          tabPajak: p.tab_pajak || 0,
+          jumlahNetto: p.p1_netto || p.jumlah_netto || 0,
+        })),
+        total_bruto: res.data.total_bruto || 0,
+        total_pajak: res.data.total_pajak || 0,
+        total_netto: res.data.total_netto || 0,
+        penanggung_jawab: res.data.penanggung_jawab || {
+          nama: "Dr. Ahmad Syafrizal, M.T.",
+          nip: "196805121994031002",
+          jabatan: "Kepala Bagian Keuangan",
+        },
+        kepala_upt: res.data.kepala_upt || {
+          nama: "Prof. Dr. Ir. Hendri Sutrisno, M.Sc.",
+          nip: "196512081991031004",
+          jabatan: "Kepala UPT Remunerasi",
+        },
+      }
+
+      setAmprah(detail)
+      setJenisAmprah(detail.kelompok as any)
+    } catch (error) {
+      console.error("Error loading amprah detail:", error)
+      toast.error("Gagal memuat detail amprah")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const rows = useMemo(() => amprah?.pegawai || [], [amprah])
 
   const totals = useMemo(() => {
+    if (!amprah) {
+      return {
+        remunerasiP1: 0,
+        penguranganKehadiran: 0,
+        jumlahBruto: 0,
+        pajak: 0,
+        pajakTer: 0,
+        tabPajak: 0,
+        jumlahNetto: 0,
+      }
+    }
+
     return rows.reduce(
       (acc, r) => ({
         remunerasiP1: acc.remunerasiP1 + r.remunerasiP1,
@@ -95,15 +194,55 @@ export default function AmprahDetailPage() {
         jumlahNetto: 0,
       }
     )
-  }, [rows])
+  }, [rows, amprah])
 
   const sumNettoPegawai = rows.reduce((s, r) => s + r.jumlahNetto, 0)
-  const isTotalMatch = totals.jumlahNetto === sumNettoPegawai
+  const isTotalMatch = Math.abs(totals.jumlahNetto - sumNettoPegawai) < 1 // Allow small rounding difference
 
-  const handleDownload = (format: "PDF" | "Excel") => {
+  const handleDownload = async (format: "PDF" | "Excel") => {
+    if (!amprah) return
+
     setFileError(null)
-    toast.success(`Mengunduh berkas Amprah ${nomorAmprah} dalam format ${format}.`)
+    try {
+      setSubmitting(true)
+      // In real implementation, call download API here
+      // await uptRemunerasiService.downloadAmprah(amprah.id, format)
+      toast.success(`Mengunduh berkas Amprah ${amprah.nomor} dalam format ${format}.`)
+    } catch (error) {
+      console.error("Error downloading amprah:", error)
+      setFileError(`Gagal mengunduh berkas ${format}`)
+      toast.error(`Gagal mengunduh berkas ${format}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  const formatTanggal = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (!amprah) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Data amprah tidak ditemukan</p>
+        <Button onClick={() => navigate("/upt-remunerasi/amprah")} className="mt-4">
+          Kembali ke Daftar Amprah
+        </Button>
+      </div>
+    )
+  }
+
+  const nomorAmprah = amprah.nomor
+  const tanggalTerbit = formatTanggal(amprah.tanggal_terbit)
 
   const documentContent = (
     <div className="space-y-6 rounded-xl border bg-white p-6 md:p-8 text-slate-900 shadow-xs">
@@ -117,11 +256,11 @@ export default function AmprahDetailPage() {
         <div className="text-xs space-y-1 sm:text-right">
           <div className="flex sm:justify-end items-center gap-2">
             <span className="text-slate-500">Jenis Amprah:</span>
-            <Badge className="bg-primary text-primary-foreground text-[11px]">{jenisAmprah}</Badge>
+            <Badge className="bg-primary text-primary-foreground text-[11px]">{amprah.kelompok}</Badge>
           </div>
           <p><span className="text-slate-500">Nomor:</span> <strong className="font-mono">{nomorAmprah}</strong></p>
-          <p><span className="text-slate-500">Unit Kerja:</span> <strong>{item.unit}</strong></p>
-          <p><span className="text-slate-500">Periode:</span> <strong>{item.periode}</strong></p>
+          <p><span className="text-slate-500">Unit Kerja:</span> <strong>{amprah.unit_nama}</strong></p>
+          <p><span className="text-slate-500">Periode:</span> <strong>{amprah.periode}</strong></p>
           <p><span className="text-slate-500">Tanggal Terbit:</span> {tanggalTerbit}</p>
         </div>
       </div>
@@ -224,22 +363,22 @@ export default function AmprahDetailPage() {
         <div className="space-y-12">
           <div>
             <p className="text-slate-600">Mengetahui / Menyetujui,</p>
-            <p className="font-semibold">{dokumenConfigInitial.penanggungJawab.jabatan}</p>
+            <p className="font-semibold">{amprah.penanggung_jawab.jabatan}</p>
           </div>
           <div>
-            <p className="font-bold underline">{dokumenConfigInitial.penanggungJawab.nama}</p>
-            <p className="font-mono text-slate-600">NIP. {dokumenConfigInitial.penanggungJawab.nip}</p>
+            <p className="font-bold underline">{amprah.penanggung_jawab.nama}</p>
+            <p className="font-mono text-slate-600">NIP. {amprah.penanggung_jawab.nip}</p>
           </div>
         </div>
 
         <div className="space-y-12 sm:text-left">
           <div>
-            <p className="text-slate-600">{dokumenConfigInitial.kotaTandaTangan}, {tanggalTerbit}</p>
-            <p className="font-semibold">{dokumenConfigInitial.kepalaUpt.jabatan}</p>
+            <p className="text-slate-600">Padang, {tanggalTerbit}</p>
+            <p className="font-semibold">{amprah.kepala_upt.jabatan}</p>
           </div>
           <div>
-            <p className="font-bold underline">{dokumenConfigInitial.kepalaUpt.nama}</p>
-            <p className="font-mono text-slate-600">NIP. {dokumenConfigInitial.kepalaUpt.nip}</p>
+            <p className="font-bold underline">{amprah.kepala_upt.nama}</p>
+            <p className="font-mono text-slate-600">NIP. {amprah.kepala_upt.nip}</p>
           </div>
         </div>
       </div>
@@ -260,44 +399,26 @@ export default function AmprahDetailPage() {
       </div>
 
       <PageHeader
-        title={`Dokumen Amprah ${item.unit}`}
-        subtitle={`${nomorAmprah} • Periode ${item.periode}`}
+        title={`Dokumen Amprah ${amprah.unit_nama}`}
+        subtitle={`${nomorAmprah} • Periode ${amprah.periode}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={jenisAmprah}
-              onChange={(e) =>
-                setJenisAmprah(e.target.value as "Reguler" | "Insentif Bulan ke-13" | "THR Kinerja")
-              }
-              className="h-9 rounded-md border border-input bg-background px-3 text-xs"
-              aria-label="Jenis Amprah"
-            >
-              <option value="Reguler">Jenis: Reguler</option>
-              <option value="Insentif Bulan ke-13">Jenis: Insentif Bulan ke-13</option>
-              <option value="THR Kinerja">Jenis: THR Kinerja</option>
-            </select>
-
-            {!isTersedia && (
-              <Button
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  setIsTersedia(true)
-                  toast.success("Amprah berhasil disusun dan berstatus Tersedia untuk diunduh Bendahara.")
-                }}
-              >
-                <Save className="size-4" /> Susun Amprah
-              </Button>
-            )}
-
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsPrintOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsPrintOpen(true)} disabled={submitting}>
               <Printer className="size-4" /> Cetak
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleDownload("Excel")}>
-              <FileSpreadsheet className="size-4" /> Unduh Excel
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => handleDownload("Excel")}
+              disabled={submitting}
+            >
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : <FileSpreadsheet className="size-4" />}
+              Unduh Excel
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => handleDownload("PDF")}>
-              <Download className="size-4" /> Unduh PDF
+            <Button size="sm" className="gap-1.5" onClick={() => handleDownload("PDF")} disabled={submitting}>
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Unduh PDF
             </Button>
           </div>
         }

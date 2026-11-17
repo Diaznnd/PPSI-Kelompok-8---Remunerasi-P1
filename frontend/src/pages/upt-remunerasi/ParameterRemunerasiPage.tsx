@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Edit2,
   History,
@@ -10,6 +10,7 @@ import {
   Clock,
   ShieldAlert,
   Percent,
+  Loader2,
 } from "lucide-react"
 import {
   PageHeader,
@@ -26,13 +27,14 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  parameterListInitial,
   tarifPajakMock,
   rupiah,
   type ParameterItem,
   type StatusParameter,
 } from "@/data/dummy-upt"
 import { Label } from "@/components/ui/label"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { toast } from "sonner"
 
 const KELOMPOK_LIST = [
   { id: "Umum", nama: "Umum (PIR & % P1)", icon: Percent },
@@ -49,8 +51,9 @@ const KELOMPOK_LIST = [
 type KelompokKey = (typeof KELOMPOK_LIST)[number]["id"]
 
 export default function ParameterRemunerasiPage() {
+  const [loading, setLoading] = useState(true)
   const [selectedKelompok, setSelectedKelompok] = useState<KelompokKey>("Umum")
-  const [parameters, setParameters] = useState<ParameterItem[]>(parameterListInitial)
+  const [parameters, setParameters] = useState<ParameterItem[]>([])
 
   const [historyParam, setHistoryParam] = useState<ParameterItem | null>(null)
 
@@ -60,7 +63,46 @@ export default function ParameterRemunerasiPage() {
   const [formTanggal, setFormTanggal] = useState("")
   const [formDasarHukum, setFormDasarHukum] = useState("")
   const [formAlasan, setFormAlasan] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<{ nilai?: string; tanggal?: string; dasarHukum?: string }>({})
+
+  useEffect(() => {
+    loadParameters()
+  }, [])
+
+  const loadParameters = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getMasterParameters()
+      
+      // Map API response
+      const mapped: ParameterItem[] = (res.data || []).map((item: any) => ({
+        id: item.id?.toString() || `param-${Date.now()}`,
+        kode: item.kode || item.key || "-",
+        nama: item.nama || item.name || "-",
+        nilai: item.nilai?.toString() || "0",
+        satuan: item.satuan || item.unit || "",
+        kelompok: item.kelompok || item.group || "Umum",
+        keterangan: item.keterangan || item.description || "",
+        berlakuMulai: item.berlaku_sejak || "2026-01-01",
+        dasarHukum: item.dasar_hukum || "Peraturan Rektor",
+        status: item.status || "Berlaku",
+        catatanKhusus: item.catatan_khusus || null,
+        dihitungAmbang: item.dihitung_ambang || false,
+        berhakP1: item.berhak_p1 !== false,
+        pengaliPersen: item.pengali_persen || null,
+        riwayat: item.riwayat || [],
+      }))
+      
+      setParameters(mapped)
+    } catch (error: any) {
+      console.error("Error loading parameters:", error)
+      toast.error("Gagal memuat data parameter")
+      setParameters([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const currentGroupParams = useMemo(() => {
     return parameters.filter((p) => p.kelompok === selectedKelompok)
@@ -76,7 +118,7 @@ export default function ParameterRemunerasiPage() {
     setEditDialogOpen(true)
   }
 
-  const handleSaveParam = () => {
+  const handleSaveParam = async () => {
     if (!editingParam) return
     const errors: typeof fieldErrors = {}
 
@@ -112,32 +154,22 @@ export default function ParameterRemunerasiPage() {
       return
     }
 
-    setParameters((prev) =>
-      prev.map((item) =>
-        item.id === editingParam.id
-          ? {
-            ...item,
-            nilai: formNilai.trim(),
-            berlakuMulai: formTanggal,
-            dasarHukum: formDasarHukum.trim(),
-            status: "Berlaku" as StatusParameter,
-            riwayat: [
-              {
-                versi: `v${(item.riwayat.length + 1).toFixed(1)}`,
-                tanggal: formTanggal,
-                nilai: formNilai.trim(),
-                dasarHukum: formDasarHukum.trim(),
-                alasan: formAlasan.trim() || "Penetapan parameter versi baru",
-              },
-              ...item.riwayat,
-            ],
-          }
-          : item
-      )
-    )
-
-    Toast.success(`Parameter "${editingParam.nama}" berhasil diperbarui sebagai versi baru.`)
-    setEditDialogOpen(false)
+    setSubmitting(true)
+    try {
+      const numericValue = parseFloat(formNilai)
+      await uptRemunerasiService.updateParameter(editingParam.id, numericValue)
+      
+      toast.success(`Parameter "${editingParam.nama}" berhasil diperbarui sebagai versi baru.`)
+      setEditDialogOpen(false)
+      
+      // Reload data
+      await loadParameters()
+    } catch (error: any) {
+      console.error("Error updating parameter:", error)
+      toast.error(error.response?.data?.message || "Gagal memperbarui parameter")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const columns: ColumnDef<ParameterItem>[] = [
@@ -270,6 +302,14 @@ export default function ParameterRemunerasiPage() {
     },
   ]
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -351,10 +391,18 @@ export default function ParameterRemunerasiPage() {
         description="Perubahan akan dicatat sebagai revisi baru. Nilai sebelumnya tidak akan terhapus dari audit histori."
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={submitting}>
               Batal
             </Button>
-            <Button onClick={handleSaveParam}>Simpan Versi Baru</Button>
+            <Button onClick={handleSaveParam} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" /> Menyimpan...
+                </>
+              ) : (
+                "Simpan Versi Baru"
+              )}
+            </Button>
           </div>
         }
       >

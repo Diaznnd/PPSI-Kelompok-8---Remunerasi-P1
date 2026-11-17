@@ -9,6 +9,9 @@ import UptRemunerasiShell from "@/layouts/UptRemunerasiShell"
 import { RoleGuard } from "./RoleGuard"
 import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
+import ExampleRBACPage from "@/pages/ExampleRBACPage"
+import UnauthorizedPage from "@/pages/UnauthorizedPage"
+import { ProtectedRoute } from "@/components/rbac"
 import BerandaPage from "@/pages/pegawai/BerandaPage"
 import SlipListPage from "@/pages/pegawai/SlipListPage"
 import SlipDetailPage from "@/pages/pegawai/SlipDetailPage"
@@ -60,6 +63,7 @@ import MasterGradePage from "@/pages/upt-remunerasi/MasterGradePage"
 import ParameterRemunerasiPage from "@/pages/upt-remunerasi/ParameterRemunerasiPage"
 import UnitKerjaPage from "@/pages/upt-remunerasi/UnitKerjaPage"
 import AkunHakAksesPage from "@/pages/upt-remunerasi/AkunHakAksesPage"
+import AkunHakAksesDetailPage from "@/pages/upt-remunerasi/AkunHakAksesDetailPage"
 import JejakAuditUPTPage from "@/pages/upt-remunerasi/JejakAuditPage"
 import PeriodePembayaranPage from "@/pages/upt-remunerasi/PeriodePembayaranPage"
 import DokumenTemplatePage from "@/pages/upt-remunerasi/DokumenTemplatePage"
@@ -69,6 +73,12 @@ import AkunSayaPage from "@/pages/upt-remunerasi/AkunSayaPage"
 import PenetapanJabatanDetailPage from "@/pages/upt-remunerasi/PenetapanJabatanDetailPage"
 import UptPengaduanDetailPage from "@/pages/upt-remunerasi/PengaduanDetailPage"
 import KoreksiSusulanPage from "@/pages/upt-remunerasi/KoreksiSusulanPage"
+import MonitoringStatusPage from "@/pages/upt-remunerasi/MonitoringStatusPage"
+import LaporanPage from "@/pages/upt-remunerasi/LaporanPage"
+import EksporDataPage from "@/pages/upt-remunerasi/EksporDataPage"
+import ProfilUPTPage from "@/pages/upt-remunerasi/ProfilUPTPage"
+import PengaturanSistemPage from "@/pages/upt-remunerasi/PengaturanSistemPage"
+import NotifikasiPage from "@/pages/upt-remunerasi/NotifikasiPage"
 import BerandaSayaPage from "@/pages/upt-remunerasi/saya/BerandaSayaPage"
 import SlipSayaPage from "@/pages/upt-remunerasi/saya/SlipSayaPage"
 import SlipSayaDetailPage from "@/pages/upt-remunerasi/saya/SlipSayaDetailPage"
@@ -94,6 +104,15 @@ const grup = (path: string, peran: Peran, { shell = <AppShell />, dashboard = <D
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
+  { path: "/unauthorized", element: <UnauthorizedPage /> },
+  {
+    path: "/rbac-demo",
+    element: (
+      <ProtectedRoute anyRole={["pegawai", "kepegawaian", "bendahara", "verifikator", "pj_unit", "upt_remunerasi"]}>
+        <ExampleRBACPage />
+      </ProtectedRoute>
+    ),
+  },
   grup("pegawai", "pegawai", {
     shell: <PegawaiShell />,
     dashboard: <BerandaPage />,
@@ -159,6 +178,9 @@ export const router = createBrowserRouter([
     dashboard: <BerandaUptRemunerasiPage />,
     halaman: [
       { path: "upt-remunerasi/status", element: <PantauStatusUPTPage /> },
+      { path: "upt-remunerasi/monitoring", element: <MonitoringStatusPage /> },
+      { path: "upt-remunerasi/laporan", element: <LaporanPage /> },
+      { path: "upt-remunerasi/ekspor", element: <EksporDataPage /> },
       { path: "upt-remunerasi/rekapitulasi", element: <RekapitulasiUPTPage /> },
       { path: "upt-remunerasi/hitung", element: <HitungPajakPage /> },
       { path: "upt-remunerasi/hitung/:id", element: <HitungPajakDetailPage /> },
@@ -177,10 +199,13 @@ export const router = createBrowserRouter([
       { path: "upt-remunerasi/dokumen", element: <DokumenTemplatePage /> },
       { path: "upt-remunerasi/pegawai", element: <DataPegawaiUPTPage /> },
       { path: "upt-remunerasi/akun", element: <AkunHakAksesPage /> },
+      { path: "upt-remunerasi/akun/:id", element: <AkunHakAksesDetailPage /> },
       { path: "upt-remunerasi/penugasan", element: <Navigate to="/upt-remunerasi/akun" replace /> },
       { path: "upt-remunerasi/hak-akses", element: <Navigate to="/upt-remunerasi/akun" replace /> },
       { path: "upt-remunerasi/audit", element: <JejakAuditUPTPage /> },
-      { path: "upt-remunerasi/notifikasi", element: <NotifikasiSistemPage /> },
+      { path: "upt-remunerasi/notifikasi", element: <NotifikasiPage /> },
+      { path: "upt-remunerasi/profil", element: <ProfilUPTPage /> },
+      { path: "upt-remunerasi/pengaturan", element: <PengaturanSistemPage /> },
       { path: "upt-remunerasi/akun-saya", element: <AkunSayaPage /> },
       { path: "upt-remunerasi/koreksi", element: <KoreksiSusulanPage /> },
       { path: "upt-remunerasi/beranda-saya", element: <BerandaSayaPage /> },

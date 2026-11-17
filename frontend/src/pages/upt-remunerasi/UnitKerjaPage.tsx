@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react"
-import { Plus, Edit2, Ban, CheckCircle2, Network, Table as TableIcon, Building2 } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Plus, Edit2, Ban, CheckCircle2, Network, Table as TableIcon, Building2, Loader2 } from "lucide-react"
 import {
   PageHeader,
   DataTable,
@@ -14,13 +14,14 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  unitKerjaInitial,
   type UnitKerjaItem,
   type TipeUnit,
   type StatusEntitas,
 } from "@/data/dummy-upt"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { toast } from "sonner"
 
 const TIPE_OPTIONS: TipeUnit[] = [
   "Fakultas",
@@ -32,7 +33,8 @@ const TIPE_OPTIONS: TipeUnit[] = [
 ]
 
 export default function UnitKerjaPage() {
-  const [data, setData] = useState<UnitKerjaItem[]>(unitKerjaInitial)
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<UnitKerjaItem[]>([])
   const [search, setSearch] = useState("")
   const [filterTipe, setFilterTipe] = useState<string>("semua")
   const [filterStatus, setFilterStatus] = useState<string>("semua")
@@ -47,8 +49,41 @@ export default function UnitKerjaPage() {
   const [formPimpinan, setFormPimpinan] = useState("")
   const [formBendahara, setFormBendahara] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [deactivateItem, setDeactivateItem] = useState<UnitKerjaItem | null>(null)
+
+  useEffect(() => {
+    loadUnits()
+  }, [])
+
+  const loadUnits = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getMasterUnits()
+      
+      // Map API response
+      const mapped: UnitKerjaItem[] = (res.data || []).map((item: any) => ({
+        id: item.id?.toString() || `unit-${Date.now()}`,
+        kode: item.kode || item.kode_unit || "-",
+        nama: item.nama || item.nama_unit || "-",
+        tipe: item.tipe || item.jenis || "Fakultas",
+        induk: item.induk || item.unit_induk || "-",
+        pimpinan: item.pimpinan || "Belum Ditugaskan",
+        bendahara: item.bendahara || "Belum Ditugaskan",
+        aktif: item.aktif || item.jumlah_pegawai || 0,
+        status: item.aktif === false || item.status === "nonaktif" ? "nonaktif" : "aktif",
+      }))
+      
+      setData(mapped)
+    } catch (error: any) {
+      console.error("Error loading units:", error)
+      toast.error("Gagal memuat data unit kerja")
+      setData([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     return data.filter((item) => {
@@ -86,7 +121,7 @@ export default function UnitKerjaPage() {
     setFormOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setFormError(null)
     if (!formKode.trim() || !formNama.trim() || !formPimpinan.trim()) {
       setFormError("Semua kolom bertanda bintang (*) wajib diisi.")
@@ -109,60 +144,61 @@ export default function UnitKerjaPage() {
       return
     }
 
-    if (editingItem) {
-      setData((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
-            ? {
-              ...item,
-              kode: formKode.trim().toUpperCase(),
-              nama: formNama.trim(),
-              tipe: formTipe,
-              induk: formInduk,
-              pimpinan: formPimpinan.trim(),
-              bendahara: formBendahara.trim() || item.bendahara,
-            }
-            : item
-        )
-      )
-      Toast.success(`Unit kerja ${formNama} berhasil diperbarui.`)
-    } else {
-      const newItem: UnitKerjaItem = {
-        id: `unit-${Date.now()}`,
-        kode: formKode.trim().toUpperCase(),
-        nama: formNama.trim(),
-        tipe: formTipe,
-        induk: formInduk,
-        pimpinan: formPimpinan.trim(),
-        bendahara: formBendahara.trim() || "Belum Ditugaskan",
-        aktif: 0,
-        status: "aktif",
+    setSubmitting(true)
+    try {
+      if (editingItem) {
+        await uptRemunerasiService.updateUnit(editingItem.id, {
+          nama: formNama.trim(),
+          jenis: formTipe,
+          aktif: true,
+        })
+        toast.success(`Unit kerja ${formNama} berhasil diperbarui.`)
+      } else {
+        await uptRemunerasiService.storeUnit({
+          nama: formNama.trim(),
+          jenis: formTipe,
+          aktif: true,
+        })
+        toast.success(`Unit kerja ${formNama} berhasil ditambahkan.`)
       }
-      setData((prev) => [newItem, ...prev])
-      Toast.success(`Unit kerja ${formNama} berhasil ditambahkan.`)
-    }
 
-    setFormOpen(false)
+      setFormOpen(false)
+      await loadUnits()
+    } catch (error: any) {
+      console.error("Error saving unit:", error)
+      setFormError(error.response?.data?.message || "Gagal menyimpan data unit")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleToggleStatus = (item: UnitKerjaItem) => {
+  const handleToggleStatus = async (item: UnitKerjaItem) => {
     if (item.status === "aktif") {
       setDeactivateItem(item)
     } else {
-      setData((prev) =>
-        prev.map((u) => (u.id === item.id ? { ...u, status: "aktif" as StatusEntitas } : u))
-      )
-      Toast.success(`Unit ${item.nama} telah diaktifkan kembali.`)
+      try {
+        await uptRemunerasiService.toggleUnitStatus(item.id)
+        toast.success(`Unit ${item.nama} telah diaktifkan kembali.`)
+        await loadUnits()
+      } catch (error: any) {
+        console.error("Error toggling status:", error)
+        toast.error(error.response?.data?.message || "Gagal mengaktifkan unit")
+      }
     }
   }
 
-  const confirmDeactivate = () => {
+  const confirmDeactivate = async () => {
     if (!deactivateItem) return
-    setData((prev) =>
-      prev.map((u) => (u.id === deactivateItem.id ? { ...u, status: "nonaktif" as StatusEntitas } : u))
-    )
-    Toast.success(`Unit ${deactivateItem.nama} berhasil dinonaktifkan.`)
-    setDeactivateItem(null)
+    
+    try {
+      await uptRemunerasiService.toggleUnitStatus(deactivateItem.id)
+      toast.success(`Unit ${deactivateItem.nama} berhasil dinonaktifkan.`)
+      setDeactivateItem(null)
+      await loadUnits()
+    } catch (error: any) {
+      console.error("Error deactivating unit:", error)
+      toast.error(error.response?.data?.message || "Gagal menonaktifkan unit")
+    }
   }
 
   const columns: ColumnDef<UnitKerjaItem>[] = [
@@ -237,6 +273,14 @@ export default function UnitKerjaPage() {
     const childUnits = data.filter((u) => u.induk !== "-")
     return { rootUnits, childUnits }
   }, [data])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -406,11 +450,19 @@ export default function UnitKerjaPage() {
         description="Pastikan kode unit dan nama unit kerja unik serta sesuai nomenklatur resmi."
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={() => setFormOpen(false)}>
+            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={submitting}>
               Batal
             </Button>
-            <Button onClick={handleSave}>
-              {editingItem ? "Simpan Perubahan" : "Tambah Unit"}
+            <Button onClick={handleSave} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" /> Menyimpan...
+                </>
+              ) : editingItem ? (
+                "Simpan Perubahan"
+              ) : (
+                "Tambah Unit"
+              )}
             </Button>
           </div>
         }

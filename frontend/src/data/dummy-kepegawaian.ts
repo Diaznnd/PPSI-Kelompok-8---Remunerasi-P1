@@ -33,6 +33,10 @@ export const hariInklusif = (a: string, b: string) => {
 export type PegawaiKep = {
   nip: string; nama: string; email: string; jenis: JenisPegawai; status: StatusPegawai
   golongan: string; jabatan: string; grade: number; tmt: string; aktif: boolean; alasanNonaktif?: string
+  status_tugas_belajar?: "aktif" | "tugas_belajar"
+  sk_tugas_belajar?: string
+  tgl_mulai_tubel?: string
+  tgl_selesai_tubel?: string
 }
 const P = (nip: string, nama: string, email: string, jenis: JenisPegawai, status: StatusPegawai, golongan: string, jabatan: string, grade: number, aktif = true): PegawaiKep =>
   ({ nip, nama, email, jenis, status, golongan, jabatan, grade, tmt: "", aktif })

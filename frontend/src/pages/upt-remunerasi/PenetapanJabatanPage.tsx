@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { ArrowRight, Search } from "lucide-react"
+import { ArrowRight, Loader2, Search } from "lucide-react"
+import { toast } from "sonner"
 import {
   PageHeader,
   DataTable,
@@ -14,20 +15,57 @@ import {
   unitKerja,
   type UsulanJabatanDetailItem,
 } from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 export default function PenetapanJabatanPage() {
+  const [loading, setLoading] = useState(true)
+  const [usulanList, setUsulanList] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<"menunggu" | "semua">("menunggu")
   const [search, setSearch] = useState("")
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
 
+  useEffect(() => {
+    fetchUsulan()
+  }, [])
+
+  const fetchUsulan = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getPenetapanJabatanList()
+      
+      // Map API response to frontend format
+      const mappedData = res.data.map((u: any) => ({
+        id: u.nomor_usulan || u.id,
+        nip: u.NIP,
+        pegawai: u.pegawai.nama,
+        unit: u.unit_nama,
+        lama: `${u.jabatan_lama.nama} (${u.jabatan_lama.grade})`,
+        baru: `${u.jabatan_baru.nama} (${u.jabatan_baru.grade})`,
+        mulai: u.tanggal_berlaku,
+        diajukan: u.diajukan_at,
+        status: u.status,
+        rawId: u.id,
+      }))
+      
+      setUsulanList(mappedData)
+    } catch (error) {
+      console.error("Error fetching usulan:", error)
+      toast.error("Gagal memuat usulan. Menggunakan data dummy.")
+      // Fallback to dummy data
+      setUsulanList(usulanJabatanDetailList)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const menungguCount = useMemo(
-    () => usulanJabatanDetailList.filter((u) => u.status === "terverifikasi").length,
-    []
+    () => usulanList.filter((u) => u.status === "terverifikasi").length,
+    [usulanList]
   )
 
   const filteredData = useMemo(() => {
-    return usulanJabatanDetailList.filter((item) => {
+    return usulanList.filter((item) => {
       if (activeTab === "menunggu" && item.status !== "terverifikasi") return false
 
       const q = search.toLowerCase().trim()
@@ -44,7 +82,7 @@ export default function PenetapanJabatanPage() {
 
       return matchSearch && matchUnit && matchStatus
     })
-  }, [activeTab, search, unitFilter, statusFilter])
+  }, [usulanList, activeTab, search, unitFilter, statusFilter])
 
   const columns: ColumnDef<UsulanJabatanDetailItem>[] = [
     {
@@ -97,7 +135,7 @@ export default function PenetapanJabatanPage() {
             size="sm"
             className="h-8 text-xs"
           >
-            <Link to={`/upt-remunerasi/penetapan/${item.id}`}>
+            <Link to={`/upt-remunerasi/penetapan/${item.rawId || item.id}`}>
               {isTerverifikasi ? "Proses" : "Lihat"}
             </Link>
           </Button>
@@ -106,6 +144,14 @@ export default function PenetapanJabatanPage() {
       className: "w-24",
     },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -136,7 +182,7 @@ export default function PenetapanJabatanPage() {
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Semua Usulan ({usulanJabatanDetailList.length})
+          Semua Usulan ({usulanList.length})
         </button>
       </div>
 

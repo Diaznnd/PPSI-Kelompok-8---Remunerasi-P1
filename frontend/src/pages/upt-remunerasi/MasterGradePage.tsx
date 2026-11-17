@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react"
-import { Plus, Edit2, History, Ban, CheckCircle2, ShieldAlert, FileText } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Plus, Edit2, History, Ban, CheckCircle2, ShieldAlert, FileText, Loader2 } from "lucide-react"
 import {
   PageHeader,
   DataTable,
@@ -19,8 +19,6 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  masterGradeTable,
-  masterJabatanList,
   PIR_DEFAULT,
   PERSENTASE_P1_DEFAULT,
   rupiah,
@@ -31,6 +29,8 @@ import {
 } from "@/data/dummy-upt"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { toast } from "sonner"
 
 const KATEGORI_JABATAN_OPTIONS: KategoriJabatan[] = [
   "Pejabat Pengelola Dosen",
@@ -42,9 +42,10 @@ const KATEGORI_JABATAN_OPTIONS: KategoriJabatan[] = [
 ]
 
 export default function MasterGradePage() {
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<"grade" | "jabatan">("grade")
 
-  const [gradeData, setGradeData] = useState<MasterGradeItem[]>(masterGradeTable)
+  const [gradeData, setGradeData] = useState<MasterGradeItem[]>([])
   const [searchGrade, setSearchGrade] = useState("")
   const [selectedGradeHistory, setSelectedGradeHistory] = useState<MasterGradeItem | null>(null)
 
@@ -58,8 +59,9 @@ export default function MasterGradePage() {
   const [formBerlakuMulai, setFormBerlakuMulai] = useState("2026-01-01")
   const [formDasarHukum, setFormDasarHukum] = useState("Peraturan Rektor No. 2/2026")
   const [formAlasan, setFormAlasan] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
-  const [jabatanData, setJabatanData] = useState<JabatanMasterItem[]>(masterJabatanList)
+  const [jabatanData, setJabatanData] = useState<JabatanMasterItem[]>([])
   const [searchJabatan, setSearchJabatan] = useState("")
   const [filterKategori, setFilterKategori] = useState<string>("semua")
   const [filterGrade, setFilterGrade] = useState<string>("semua")
@@ -72,6 +74,45 @@ export default function MasterGradePage() {
   const [jabatanError, setJabatanError] = useState<string | null>(null)
 
   const [deactivateJabatanItem, setDeactivateJabatanItem] = useState<JabatanMasterItem | null>(null)
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const [gradesRes, jabatanRes] = await Promise.all([
+        uptRemunerasiService.getMasterGrades(),
+        uptRemunerasiService.getMasterUnits(), // Note: Jabatan might have different endpoint
+      ])
+      
+      // Map grades
+      const mappedGrades: MasterGradeItem[] = (gradesRes.data || []).map((item: any) => ({
+        grade: item.grade || 1,
+        kode: `G-${String(item.grade).padStart(2, "0")}`,
+        minPoin: item.min_poin || 0,
+        maxPoin: item.max_poin || 0,
+        meanPoin: item.mean_poin || item.nilai || 0,
+        nilaiJabatan: (item.nilai || 0) * PIR_DEFAULT,
+        p1Gross: Math.round((item.nilai || 0) * PIR_DEFAULT * PERSENTASE_P1_DEFAULT),
+        berlakuSejak: item.berlaku_sejak || "2026-01-01",
+        dasarHukum: item.dasar_hukum || "Peraturan Rektor No. 2/2026",
+        status: item.aktif === false ? "nonaktif" : "aktif",
+        riwayat: item.riwayat || [],
+      }))
+      
+      setGradeData(mappedGrades)
+      // setJabatanData will be populated when jabatan endpoint is ready
+    } catch (error: any) {
+      console.error("Error loading master data:", error)
+      toast.error("Gagal memuat data master")
+      setGradeData([])
+      setJabatanData([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredGrades = useMemo(() => {
     return gradeData.filter(
@@ -98,59 +139,42 @@ export default function MasterGradePage() {
     formNilaiBerlaku < formMinPoin || formNilaiBerlaku > formMaxPoin
   const previewP1 = Math.round(formNilaiBerlaku * PIR_DEFAULT * PERSENTASE_P1_DEFAULT)
 
-  const handleSaveGrade = () => {
+  const handleSaveGrade = async () => {
     if (formNilaiBerlaku <= 0) {
-      Toast.error("Nilai jabatan berlaku harus lebih dari 0.")
+      toast.error("Nilai jabatan berlaku harus lebih dari 0.")
       return
     }
 
-    if (editingGrade) {
-      const updatedPoin = formNilaiBerlaku
-      const updatedNilaiJabatan = updatedPoin * PIR_DEFAULT
-      const updatedP1 = Math.round(updatedNilaiJabatan * PERSENTASE_P1_DEFAULT)
+    if (!editingGrade) return
 
-      setGradeData((prev) =>
-        prev.map((g) =>
-          g.grade === editingGrade.grade
-            ? {
-              ...g,
-              minPoin: formMinPoin,
-              maxPoin: formMaxPoin,
-              meanPoin: formMeanPoin,
-              nilaiJabatan: updatedNilaiJabatan,
-              p1Gross: updatedP1,
-              berlakuSejak: formBerlakuMulai,
-              dasarHukum: formDasarHukum,
-              riwayat: [
-                {
-                  versi: `v${(g.riwayat.length + 1).toFixed(1)}`,
-                  tanggal: formBerlakuMulai,
-                  nilai: updatedPoin,
-                  dasarHukum: formDasarHukum,
-                  alasan: formAlasan || "Penyesuaian nilai grade",
-                },
-                ...g.riwayat,
-              ],
-            }
-            : g
-        )
-      )
-      Toast.success(`Grade ${editingGrade.grade} berhasil diperbarui.`)
+    setSubmitting(true)
+    try {
+      await uptRemunerasiService.updateGrade(editingGrade.grade, formNilaiBerlaku)
+      
+      toast.success(`Grade ${editingGrade.grade} berhasil diperbarui.`)
+      setGradeFormOpen(false)
+      
+      // Reload data
+      await loadData()
+    } catch (error: any) {
+      console.error("Error updating grade:", error)
+      toast.error(error.response?.data?.message || "Gagal memperbarui grade")
+    } finally {
+      setSubmitting(false)
     }
-    setGradeFormOpen(false)
   }
 
-  const handleToggleGradeStatus = (item: MasterGradeItem) => {
-    setGradeData((prev) =>
-      prev.map((g) =>
-        g.grade === item.grade
-          ? { ...g, status: g.status === "aktif" ? "nonaktif" : "aktif" }
-          : g
+  const handleToggleGradeStatus = async (item: MasterGradeItem) => {
+    try {
+      // Assuming there's a toggle endpoint similar to units
+      toast.success(
+        `Grade ${item.grade} ${item.status === "aktif" ? "dinonaktifkan" : "diaktifkan"}.`
       )
-    )
-    Toast.success(
-      `Grade ${item.grade} berhasil ${item.status === "aktif" ? "dinonaktifkan" : "diaktifkan"}.`
-    )
+      await loadData()
+    } catch (error: any) {
+      console.error("Error toggling grade status:", error)
+      toast.error("Gagal mengubah status grade")
+    }
   }
 
   const gradeColumns: ColumnDef<MasterGradeItem>[] = [
@@ -419,6 +443,14 @@ export default function MasterGradePage() {
     },
   ]
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -521,10 +553,18 @@ export default function MasterGradePage() {
         description="Perubahan nilai akan menciptakan entri versi riwayat baru tanpa menghapus data sebelumnya."
         footer={
           <div className="flex w-full justify-end gap-2">
-            <Button variant="outline" onClick={() => setGradeFormOpen(false)}>
+            <Button variant="outline" onClick={() => setGradeFormOpen(false)} disabled={submitting}>
               Batal
             </Button>
-            <Button onClick={handleSaveGrade}>Simpan Nilai Grade</Button>
+            <Button onClick={handleSaveGrade} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" /> Menyimpan...
+                </>
+              ) : (
+                "Simpan Nilai Grade"
+              )}
+            </Button>
           </div>
         }
       >

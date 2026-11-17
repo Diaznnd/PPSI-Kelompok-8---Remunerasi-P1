@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Plus, Search, XCircle } from "lucide-react"
+import { Loader2, Plus, Search, XCircle } from "lucide-react"
+import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,16 +12,78 @@ import { warnaUsulan } from "@/components/kepegawaian/warna"
 import type { StatusUsulan } from "@/data/dummy-kepegawaian"
 import { useKepeg } from "@/data/store-kepegawaian"
 import { cn } from "@/lib/utils"
+import { kepegawaianService } from "@/services/kepegawaianService"
 
 const Sub = ({ t }: { t: string }) => <span className="text-[10px] text-muted-foreground">{t}</span>
 
+// Mapping status backend ke frontend
+const statusMap: Record<string, StatusUsulan> = {
+  "diajukan": "Diajukan",
+  "dikembalikan": "Dikembalikan",
+  "disetujui_verifikator": "Disetujui Verifikator",
+  "ditetapkan": "Ditetapkan",
+}
+
 export default function UsulanJabatanListPage() {
-  const { usulan } = useKepeg()
+  const { usulan: usulanDummy } = useKepeg()
+  const [loading, setLoading] = useState(true)
+  const [usulan, setUsulan] = useState<any[]>([])
   const [tab, setTab] = useState<"semua" | StatusUsulan>("semua")
   const [q, setQ] = useState("")
+
+  useEffect(() => {
+    const fetchUsulan = async () => {
+      try {
+        setLoading(true)
+        const res = await kepegawaianService.getUsulanList()
+        
+        // Map API response to frontend format
+        const mappedData = res.data.map((u: any) => ({
+          id: u.nomor_urutan || u.id,
+          nama: u.nama_pegawai,
+          lama: {
+            jabatan: u.jabatan_lama.nama,
+            grade: u.jabatan_lama.grade,
+          },
+          baru: {
+            jabatan: u.jabatan_baru.nama,
+            grade: u.jabatan_baru.grade,
+          },
+          jenis: u.jenis_perubahan === "promosi" ? "Promosi" : 
+                 u.jenis_perubahan === "mutasi" ? "Mutasi" :
+                 u.jenis_perubahan === "kenaikan_grade" ? "Kenaikan Grade" : "Penyesuaian",
+          mulai: u.tanggal_berlaku,
+          status: statusMap[u.status] || u.status,
+          catatanKembali: u.catatan_verifikator || "",
+          diajukan_at: u.diajukan_at,
+          rawId: u.id, // Keep original ID for navigation
+        }))
+        
+        setUsulan(mappedData)
+      } catch (error) {
+        console.error("Error fetching usulan:", error)
+        toast.error("Gagal memuat usulan. Menggunakan data dummy.")
+        // Fallback to dummy data
+        setUsulan(usulanDummy)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchUsulan()
+  }, [usulanDummy])
+
   const hitung = (s: StatusUsulan) => usulan.filter((u) => u.status === s).length
   const kembali = usulan.filter((u) => u.status === "Dikembalikan")
   const rows = useMemo(() => usulan.filter((u) => tab === "semua" || u.status === tab).filter((u) => (u.nama + u.id).toLowerCase().includes(q.toLowerCase())), [usulan, tab, q])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <>
@@ -48,7 +111,7 @@ export default function UsulanJabatanListPage() {
                 <p>{kembali[0].nama}: {kembali[0].catatanKembali}</p>
               </div>
             </div>
-            <Button asChild variant="outline" size="sm" className="border-red-300 text-red-700"><Link to={`/kepegawaian/usulan/${kembali[0].id}`}>Perbaiki Sekarang</Link></Button>
+            <Button asChild variant="outline" size="sm" className="border-red-300 text-red-700"><Link to={`/kepegawaian/usulan/${kembali[0].rawId}`}>Perbaiki Sekarang</Link></Button>
           </div>
         )}
 
@@ -67,14 +130,14 @@ export default function UsulanJabatanListPage() {
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-muted-foreground">Tidak ada usulan pada tampilan ini.</td></tr>}
                 {rows.map((u) => (
-                  <tr key={u.id} className="border-t odd:bg-muted/20">
-                    <td className="px-4 py-3"><div className="flex items-center gap-2.5"><Avatar nama={u.nama} /><div><p className="font-semibold">{u.nama}</p><p className="text-[10px] text-muted-foreground">{u.id}</p></div></div></td>
-                    <td className="px-4 py-3 text-muted-foreground">{u.lama.jabatan} G{u.lama.grade} <span className="mx-1">→</span> <b className="text-foreground">{u.baru.jabatan} G{u.baru.grade}</b></td>
+                  <tr key={u.rawId || u.id} className="border-t odd:bg-muted/20">
+                    <td className="px-4 py-3"><div className="flex items-center gap-2.5"><Avatar nama={u.nama} /><div><p className="font-semibold">{u.nama}</p><p className="text-[10px] text-muted-foreground">#{u.id}</p></div></div></td>
+                    <td className="px-4 py-3 text-muted-foreground">{u.lama.jabatan} {u.lama.grade} <span className="mx-1">→</span> <b className="text-foreground">{u.baru.jabatan} {u.baru.grade}</b></td>
                     <td className="px-4 py-3">{u.jenis}</td>
                     <td className="px-4 py-3">{u.mulai}</td>
                     <td className="px-4 py-3 text-muted-foreground">SK • SPMT</td>
                     <td className="px-4 py-3"><Badge variant="outline" className={cn(warnaUsulan[u.status])}>{u.status}</Badge></td>
-                    <td className="px-4 py-3 font-semibold text-primary"><Link to={`/kepegawaian/usulan/${u.id}`} className="hover:underline">{u.status === "Dikembalikan" ? "Perbaiki" : "Lihat"}</Link></td>
+                    <td className="px-4 py-3 font-semibold text-primary"><Link to={`/kepegawaian/usulan/${u.rawId || u.id}`} className="hover:underline">{u.status === "Dikembalikan" ? "Perbaiki" : "Lihat"}</Link></td>
                   </tr>
                 ))}
               </tbody>

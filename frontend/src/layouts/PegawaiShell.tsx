@@ -1,9 +1,20 @@
 import { useState } from "react"
 import { useOutletContext } from "react-router-dom"
 import { FileText, Gauge, MessageSquare } from "lucide-react"
+import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DAFTAR_PERIODE, PERIODE_AKTIF, pegawai } from "@/data/dummy-pegawai"
+
+// Daftar periode yang tersedia
+const DAFTAR_PERIODE = [
+  "Oktober 2026",
+  "September 2026",
+  "Agustus 2026",
+  "Juli 2026",
+  "Juni 2026",
+  "Mei 2026"
+]
+const PERIODE_AKTIF = "Oktober 2026"
 
 const NAV = [
   { to: "/pegawai/dashboard", label: "Beranda", icon: Gauge },
@@ -17,13 +28,34 @@ export function usePeriode() {
 }
 
 export default function PegawaiShell() {
+  const { akun } = useAuth()
   const [periode, setPeriode] = useState(PERIODE_AKTIF)
+
+  // Jika akun memiliki peran operasional selain pegawai, sediakan menu tugas unit
+  const secondaryNav = akun && akun.peran !== "pegawai" ? {
+    title: `TUGAS ${akun.peran.toUpperCase()} (${akun.unit_nama || 'UNIT'})`,
+    items: [
+      { to: `/${akun.peran}/dashboard`, label: `Dashboard ${akun.peran}`, icon: Gauge },
+    ],
+  } : undefined
+
   return (
     <PortalShell
       home="/pegawai/dashboard"
       nav={NAV}
-      user={{ nama: pegawai.nama, inisial: pegawai.inisial, peran: "Pegawai" }}
-      lebar="max-w-6xl"
+      secondaryNav={secondaryNav}
+      user={{
+        nama: akun?.nama || "Pegawai",
+        inisial: (akun?.nama || "Pegawai")
+          .split(" ")
+          .map((n) => n[0])
+          .slice(0, 2)
+          .join("")
+          .toUpperCase() || "PG",
+        peran: "Pegawai",
+        unit: akun?.unit_nama || "Unit Kerja",
+      }}
+      lebar="max-w-7xl"
       outletContext={{ periode }}
       headerLeft={
         <>

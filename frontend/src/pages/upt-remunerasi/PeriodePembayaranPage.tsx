@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Plus,
   Lock,
@@ -6,45 +6,159 @@ import {
   CheckCircle2,
   ChevronRight,
   Search,
+  Loader2,
+  Calendar,
+  AlertCircle,
 } from "lucide-react"
 import {
   PageHeader,
   StatusBadge,
   Button,
   Input,
-  FormDialog,
   ConfirmDialog,
   WarningBanner,
-  Toast,
 } from "./components"
-import {
-  daftarPeriodeData,
-  rupiah,
-  type PeriodeDetailItem,
-  type PeriodeStatus,
-} from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
+
+type PeriodeStatus = "aktif" | "tutup" | "draft"
+
+type PeriodeDetailItem = {
+  id: string
+  nama: string
+  bulan: number
+  tahun: number
+  status: PeriodeStatus
+  totalPengajuan: number
+  totalPegawai: number
+  totalNominal: number
+}
 
 const NAMA_BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
 ]
 
+const rupiah = (n: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n)
+
 export default function PeriodePembayaranPage() {
-  const [periodeList, setPeriodeList] = useState<PeriodeDetailItem[]>(daftarPeriodeData)
-  const [selectedPeriode, setSelectedPeriode] = useState<PeriodeDetailItem>(daftarPeriodeData[0])
+  const [loading, setLoading] = useState(true)
+  const [periodeList, setPeriodeList] = useState<PeriodeDetailItem[]>([])
+  const [selectedPeriode, setSelectedPeriode] = useState<PeriodeDetailItem | null>(null)
   const [search, setSearch] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const [openNewPeriodDialog, setOpenNewPeriodDialog] = useState(false)
-  const [newBulan, setNewBulan] = useState<number>(11)
-  const [newTahun, setNewTahun] = useState<number>(2026)
+  const [newBulan, setNewBulan] = useState<number>(new Date().getMonth() + 1)
+  const [newTahun, setNewTahun] = useState<number>(new Date().getFullYear())
 
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
+  const [periodeToLock, setPeriodeToLock] = useState<PeriodeDetailItem | null>(null)
 
-  const [editingTahapanIndex, setEditingTahapanIndex] = useState<number | null>(null)
-  const [editTglMulai, setEditTglMulai] = useState("")
-  const [editTglSelesai, setEditTglSelesai] = useState("")
+  useEffect(() => {
+    loadPeriodeList()
+  }, [])
+
+  const loadPeriodeList = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getKonfigurasi()
+      
+      // Generate periode list from last 12 months
+      const periods: PeriodeDetailItem[] = []
+      const now = new Date()
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+        const isAktif = res.data?.periode_aktif === periode
+        
+        periods.push({
+          id: periode,
+          nama: `${NAMA_BULAN[d.getMonth()]} ${d.getFullYear()}`,
+          bulan: d.getMonth() + 1,
+          tahun: d.getFullYear(),
+          status: isAktif ? "aktif" : "tutup",
+          totalPengajuan: 0,
+          totalPegawai: 0,
+          totalNominal: 0,
+        })
+      }
+      
+      setPeriodeList(periods)
+      const aktif = periods.find((p) => p.status === "aktif")
+      if (aktif) setSelectedPeriode(aktif)
+    } catch (error) {
+      console.error("Error loading periode:", error)
+      toast.error("Gagal memuat daftar periode")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSetAktif = async (periode: PeriodeDetailItem) => {
+    try {
+      setSubmitting(true)
+      await uptRemunerasiService.updatePeriodeAktif(periode.id)
+      
+      // Update local state
+      setPeriodeList(
+        periodeList.map((p) => ({
+          ...p,
+          status: p.id === periode.id ? "aktif" : "tutup",
+        }))
+      )
+      setSelectedPeriode({ ...periode, status: "aktif" })
+      toast.success(`Periode ${periode.nama} berhasil diaktifkan`)
+    } catch (error) {
+      console.error("Error setting periode aktif:", error)
+      toast.error("Gagal mengaktifkan periode")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleCreatePeriode = async () => {
+    const periodeId = `${newTahun}-${String(newBulan).padStart(2, "0")}`
+    const exists = periodeList.find((p) => p.id === periodeId)
+    
+    if (exists) {
+      toast.error("Periode sudah ada")
+      return
+    }
+
+    try {
+      setSubmitting(true)
+      // In real implementation, create periode via API
+      // For now, just add to list and set as active
+      await uptRemunerasiService.updatePeriodeAktif(periodeId)
+      
+      const newPeriode: PeriodeDetailItem = {
+        id: periodeId,
+        nama: `${NAMA_BULAN[newBulan - 1]} ${newTahun}`,
+        bulan: newBulan,
+        tahun: newTahun,
+        status: "aktif",
+        totalPengajuan: 0,
+        totalPegawai: 0,
+        totalNominal: 0,
+      }
+      
+      setPeriodeList([newPeriode, ...periodeList.map((p) => ({ ...p, status: "tutup" as PeriodeStatus }))])
+      setSelectedPeriode(newPeriode)
+      setOpenNewPeriodDialog(false)
+      toast.success(`Periode ${newPeriode.nama} berhasil dibuat dan diaktifkan`)
+    } catch (error) {
+      console.error("Error creating periode:", error)
+      toast.error("Gagal membuat periode baru")
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const filteredPeriods = useMemo(() => {
     return periodeList.filter((p) => p.nama.toLowerCase().includes(search.toLowerCase()))
