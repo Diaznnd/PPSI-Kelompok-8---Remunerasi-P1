@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link } from "react-router-dom"
 import {
   Plus,
@@ -7,6 +7,7 @@ import {
   Search,
   Layers,
   Info,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -23,13 +24,11 @@ import {
   Cell,
 } from "./components"
 import {
-  pengajuanUPT,
-  periodeUPT,
-  unitKerja,
   rupiah,
   type UPTPengajuan,
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 type AmprahRecord = {
   pengajuan: UPTPengajuan
@@ -40,19 +39,8 @@ type AmprahRecord = {
 
 export default function AmprahPage() {
   const { periode: activePeriode } = usePeriode()
-  const [records, setRecords] = useState<AmprahRecord[]>(() =>
-    pengajuanUPT.map((p, idx) => {
-      const tersedia = p.status === "amprah_tersedia"
-      return {
-        pengajuan: p,
-        nomorAmprah: tersedia
-          ? `AMP/P1/2026/10/${String(idx + 1).padStart(3, "0")}`
-          : `AMP/2026/${String(idx + 1).padStart(3, "0")}`,
-        amprahStatus: tersedia ? "Tersedia" : "Belum Disusun",
-        jenisAmprah: "Reguler",
-      }
-    })
-  )
+  const [loading, setLoading] = useState(true)
+  const [records, setRecords] = useState<AmprahRecord[]>([])
 
   const [unitFilter, setUnitFilter] = useState("semua")
   const [periodeFilter, setPeriodeFilter] = useState(activePeriode || "semua")
@@ -60,11 +48,56 @@ export default function AmprahPage() {
   const [search, setSearch] = useState("")
 
   const [isSusunOpen, setIsSusunOpen] = useState(false)
-  const [selectedUnit, setSelectedUnit] = useState(pengajuanUPT[0].unit)
+  const [selectedUnit, setSelectedUnit] = useState("")
   const [selectedPeriode, setSelectedPeriode] = useState(activePeriode || "Oktober 2026")
   const [selectedJenis, setSelectedJenis] = useState<"Reguler" | "Insentif Bulan ke-13" | "THR Kinerja">("Reguler")
+  const [submitting, setSubmitting] = useState(false)
 
   const [isSusunSemuaOpen, setIsSusunSemuaOpen] = useState(false)
+
+  useEffect(() => {
+    loadAmprahList()
+  }, [activePeriode])
+
+  const loadAmprahList = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getAmprahList(activePeriode)
+      
+      // Map API response
+      const mapped: AmprahRecord[] = (res.data || []).map((item: any, idx: number) => {
+        const tersedia = item.status === "amprah_tersedia" || item.amprah_status === "tersedia"
+        return {
+          pengajuan: {
+            id: item.id || item.pengajuan_id,
+            unit: item.unit || item.unit_nama,
+            periode: item.periode || activePeriode,
+            pegawai: item.pegawai || item.jumlah_pegawai || 0,
+            total: item.total || item.p1_gross || 0,
+            netto: item.netto || item.p1_netto || 0,
+            status: item.status || "draft",
+            diajukanPada: item.diajukan_pada || "-",
+          } as UPTPengajuan,
+          nomorAmprah: item.nomor_amprah || (tersedia
+            ? `AMP/P1/2026/${activePeriode}/${String(idx + 1).padStart(3, "0")}`
+            : `AMP/2026/${String(idx + 1).padStart(3, "0")}`),
+          amprahStatus: tersedia ? "Tersedia" : "Belum Disusun",
+          jenisAmprah: item.jenis_amprah || "Reguler",
+        }
+      })
+      
+      setRecords(mapped)
+      if (mapped.length > 0 && !selectedUnit) {
+        setSelectedUnit(mapped[0].pengajuan.unit)
+      }
+    } catch (error: any) {
+      console.error("Error loading amprah list:", error)
+      toast.error("Gagal memuat daftar amprah")
+      setRecords([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const filteredRecords = useMemo(() => {
     return records.filter((rec) => {
@@ -80,6 +113,9 @@ export default function AmprahPage() {
       return matchUnit && matchPeriode && matchStatus && matchSearch
     })
   }, [records, unitFilter, periodeFilter, statusFilter, search])
+
+  const unitOptions = useMemo(() => Array.from(new Set(records.map((r) => r.pengajuan.unit))), [records])
+  const periodeOptions = useMemo(() => Array.from(new Set(records.map((r) => r.pengajuan.periode))), [records])
 
   const readyUnits = useMemo(
     () =>
@@ -113,39 +149,60 @@ export default function AmprahPage() {
     ]
   }, [targetRecord, isNettoReady])
 
-  const handleSusunSingle = () => {
+  const handleSusunSingle = async () => {
     if (!targetRecord || !isNettoReady || isAlreadyExist) return
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.pengajuan.id === targetRecord.pengajuan.id
-          ? {
-              ...r,
-              amprahStatus: "Tersedia",
-              jenisAmprah: selectedJenis,
-              pengajuan: { ...r.pengajuan, status: "amprah_tersedia" },
-            }
-          : r
-      )
-    )
-    setIsSusunOpen(false)
-    toast.success(`Amprah ${targetRecord.nomorAmprah} (${selectedUnit}) berhasil disusun.`)
+    
+    setSubmitting(true)
+    try {
+      await uptRemunerasiService.generateAmprah({
+        periode: selectedPeriode,
+        kelompok: selectedJenis,
+      })
+      
+      toast.success(`Amprah ${targetRecord.nomorAmprah} (${selectedUnit}) berhasil disusun.`)
+      setIsSusunOpen(false)
+      
+      // Reload data
+      await loadAmprahList()
+    } catch (error: any) {
+      console.error("Error generate amprah:", error)
+      toast.error(error.response?.data?.message || "Gagal menyusun amprah")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleSusunSemua = () => {
+  const handleSusunSemua = async () => {
     const count = readyUnits.length
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.pengajuan.status === "netto_ditetapkan" && r.amprahStatus === "Belum Disusun"
-          ? {
-              ...r,
-              amprahStatus: "Tersedia",
-              pengajuan: { ...r.pengajuan, status: "amprah_tersedia" },
-            }
-          : r
-      )
+    if (count === 0) return
+    
+    setSubmitting(true)
+    try {
+      // Generate amprah for all ready units
+      await uptRemunerasiService.generateAmprah({
+        periode: activePeriode,
+        kelompok: "Reguler",
+      })
+      
+      toast.success(`${count} amprah unit yang siap berhasil disusun secara massal.`)
+      setIsSusunSemuaOpen(false)
+      
+      // Reload data
+      await loadAmprahList()
+    } catch (error: any) {
+      console.error("Error generate amprah batch:", error)
+      toast.error(error.response?.data?.message || "Gagal menyusun amprah massal")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
     )
-    setIsSusunSemuaOpen(false)
-    toast.success(`${count} amprah unit yang siap berhasil disusun secara massal.`)
   }
 
   return (
@@ -193,9 +250,9 @@ export default function AmprahPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Unit Kerja</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {unitOptions.map((u) => (
+              <option key={u} value={u}>
+                {u}
               </option>
             ))}
           </select>
@@ -206,7 +263,7 @@ export default function AmprahPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Periode</option>
-            {periodeUPT.map((p) => (
+            {periodeOptions.map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>
@@ -283,10 +340,16 @@ export default function AmprahPage() {
             ) : (
               <Button
                 size="sm"
-                disabled={!isNettoReady || !targetRecord}
+                disabled={!isNettoReady || !targetRecord || submitting}
                 onClick={handleSusunSingle}
               >
-                Susun Amprah
+                {submitting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin mr-2" /> Menyusun...
+                  </>
+                ) : (
+                  "Susun Amprah"
+                )}
               </Button>
             )}
           </div>
@@ -301,9 +364,9 @@ export default function AmprahPage() {
                 onChange={(e) => setSelectedUnit(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
               >
-                {pengajuanUPT.map((p) => (
-                  <option key={p.id} value={p.unit}>
-                    {p.unit}
+                {unitOptions.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
                   </option>
                 ))}
               </select>
@@ -315,7 +378,7 @@ export default function AmprahPage() {
                 onChange={(e) => setSelectedPeriode(e.target.value)}
                 className="mt-1 w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
               >
-                {periodeUPT.map((p) => (
+                {periodeOptions.map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>
@@ -398,6 +461,7 @@ export default function AmprahPage() {
         }
         confirmText={`Susun ${readyUnits.length} Amprah`}
         onConfirm={handleSusunSemua}
+        disabled={submitting}
       />
     </div>
   )

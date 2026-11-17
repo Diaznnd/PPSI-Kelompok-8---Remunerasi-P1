@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { AlertCircle, CheckCircle2, Lock, MessageSquare, Search } from "lucide-react"
+import { AlertCircle, CheckCircle2, Lock, MessageSquare, Search, Loader2 } from "lucide-react"
 import {
   PageHeader,
   StatCard,
@@ -10,21 +10,62 @@ import {
   Input,
   type ColumnDef,
 } from "./components"
-import { pengaduanUPT } from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { toast } from "sonner"
 
-type PengaduanRow = (typeof pengaduanUPT)[number] & { periode?: string }
+type PengaduanRow = {
+  id: string
+  tiket: string
+  pegawai: string
+  nip: string
+  unit: string
+  kategori: string
+  periode: string
+  tanggal: string
+  status: string
+}
 
 export default function PengaduanEskalasiPage() {
+  const [loading, setLoading] = useState(true)
+  const [pengaduanData, setPengaduanData] = useState<PengaduanRow[]>([])
   const [activeTab, setActiveTab] = useState<"diteruskan" | "selesai">("diteruskan")
   const [search, setSearch] = useState("")
 
+  useEffect(() => {
+    loadPengaduan()
+  }, [])
+
+  const loadPengaduan = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getPengaduanEskalasiList()
+      
+      // Map API response
+      const mapped: PengaduanRow[] = (res.data || []).map((item: any) => ({
+        id: item.id?.toString() || "-",
+        tiket: item.tiket || item.nomor_tiket || "-",
+        pegawai: item.pegawai || item.nama_pegawai || "-",
+        nip: item.nip || item.NIP || "-",
+        unit: item.unit || item.unit_nama || "-",
+        kategori: item.kategori || "Umum",
+        periode: item.periode || "Oktober 2026",
+        tanggal: item.tanggal || item.created_at || "-",
+        status: item.status || "diteruskan",
+      }))
+      
+      setPengaduanData(mapped)
+    } catch (error: any) {
+      console.error("Error loading pengaduan:", error)
+      toast.error("Gagal memuat daftar pengaduan")
+      setPengaduanData([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const normalizedData: PengaduanRow[] = useMemo(
-    () =>
-      pengaduanUPT.map((p) => ({
-        ...p,
-        periode: "Oktober 2026",
-      })),
-    []
+    () => pengaduanData,
+    [pengaduanData]
   )
 
   const diteruskanCount = useMemo(
@@ -125,6 +166,14 @@ export default function PengaduanEskalasiPage() {
       className: "w-44",
     },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

@@ -1,20 +1,68 @@
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { ArrowRight, Building2, CalendarCheck, Gavel, MessageSquare, TriangleAlert, Users, type LucideIcon } from "lucide-react"
+import { ArrowRight, Building2, CalendarCheck, Gavel, Loader2, MessageSquare, TriangleAlert, Users, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { usePeriodeKepeg } from "@/layouts/KepegawaianShell"
 import { statusHukuman } from "@/data/dummy-kepegawaian"
 import { resetKepegawaian, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 
 export default function BerandaKepegawaianPage() {
   const { periode } = usePeriodeKepeg()
   const s = useKepeg()
-  const aktif = s.pegawai.filter((p) => p.aktif).length
-  const usulanTunggu = s.usulan.filter((u) => u.status === "Diajukan").length
-  const dikembalikan = s.usulan.filter((u) => u.status === "Dikembalikan")
-  const aduan = s.pengaduan.filter((a) => a.status === "Diajukan").length
-  const hukuman = s.hukuman.filter((h) => statusHukuman(h) === "Aktif").length
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<any>(null)
+  const [unitKerja, setUnitKerja] = useState<string>("")
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true)
+        const res = await kepegawaianService.getDashboard()
+        setStats(res.statistik)
+        setUnitKerja(res.unit_kerja)
+      } catch (error) {
+        console.error("Error fetching dashboard:", error)
+        toast.error("Gagal memuat dashboard. Menggunakan data dummy.")
+        // Fallback to dummy data
+        const aktif = s.pegawai.filter((p) => p.aktif).length
+        const usulanTunggu = s.usulan.filter((u) => u.status === "Diajukan").length
+        const dikembalikan = s.usulan.filter((u) => u.status === "Dikembalikan").length
+        const aduan = s.pengaduan.filter((a) => a.status === "Diajukan").length
+        const hukuman = s.hukuman.filter((h) => statusHukuman(h) === "Aktif").length
+        
+        setStats({
+          pegawai_total: s.pegawai.length,
+          pegawai_aktif: aktif,
+          usulan_menunggu: usulanTunggu,
+          usulan_dikembalikan: dikembalikan.length,
+          pengaduan_menunggu: aduan,
+          hukuman_aktif: hukuman,
+        })
+        setUnitKerja("Fakultas Teknologi Informasi")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboard()
+  }, [s])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  const aktif = stats?.pegawai_aktif || 0
+  const usulanTunggu = stats?.usulan_menunggu || 0
+  const dikembalikan = stats?.usulan_dikembalikan || 0
+  const aduan = stats?.pengaduan_menunggu || 0
+  const hukuman = stats?.hukuman_aktif || 0
 
   const kartu: [string, number, string, LucideIcon][] = [
     ["Pegawai aktif", aktif, "Ikut perhitungan P1", Users],
@@ -22,10 +70,12 @@ export default function BerandaKepegawaianPage() {
     ["Pengaduan perlu ditanggapi", aduan, "Layanan pegawai", MessageSquare],
     ["Hukuman disiplin aktif", hukuman, "Memengaruhi P1", Gavel],
   ]
+  
   const tindakan = [
-    ...dikembalikan.map((u) => ({ t: `Usulan ${u.id} (${u.nama}) dikembalikan Verifikator`, to: `/kepegawaian/usulan/${u.id}`, aksi: "Perbaiki" })),
-    ...(aduan ? [{ t: `${aduan} pengaduan pegawai menunggu diagnosis`, to: "/kepegawaian/pengaduan", aksi: "Tanggapi" }] : []),
+    ...(dikembalikan > 0 ? [{ t: `${dikembalikan} usulan dikembalikan Verifikator`, to: "/kepegawaian/usulan", aksi: "Lihat Usulan" }] : []),
+    ...(aduan > 0 ? [{ t: `${aduan} pengaduan pegawai menunggu diagnosis`, to: "/kepegawaian/pengaduan", aksi: "Tanggapi" }] : []),
   ]
+  
   const pintasan: [string, string, LucideIcon][] = [
     ["Data Pegawai", "/kepegawaian/pegawai", Users], ["Usulan Jabatan/Grade", "/kepegawaian/usulan", Building2],
     ["Presensi & Cuti/Izin", "/kepegawaian/presensi", CalendarCheck], ["Hukuman Disiplin", "/kepegawaian/hukuman", Gavel],
@@ -35,7 +85,7 @@ export default function BerandaKepegawaianPage() {
     <>
       <PageHeading
         title="Beranda Kepegawaian"
-        desc={`Ringkasan pengelolaan data sumber P1 Fakultas Teknologi Informasi periode ${periode}.`}
+        desc={`Ringkasan pengelolaan data sumber P1 ${unitKerja} periode ${periode}.`}
         action={<Button variant="ghost" size="sm" onClick={() => { resetKepegawaian(); toast.success("Data demo dikembalikan ke awal.") }}>Reset data demo</Button>}
       />
       <div className="space-y-6">

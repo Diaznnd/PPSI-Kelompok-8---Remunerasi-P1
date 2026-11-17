@@ -1,22 +1,63 @@
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { Download } from "lucide-react"
+import { Download, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/context/AuthContext"
 import { Badge } from "@/components/ui/badge"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { DAFTAR_AMPRAH, bendahara } from "@/data/dummy-bendahara"
+import { type Amprah } from "@/data/dummy-bendahara"
+import { bendaharaService } from "@/services/bendaharaService"
 import { rupiah } from "@/lib/format"
 
 export default function AmprahListPage() {
+  const { akun } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [daftar, setDaftar] = useState<Amprah[]>([])
+
+  useEffect(() => {
+    const fetchAmprahList = async () => {
+      try {
+        setLoading(true)
+        const res = await bendaharaService.getAmprahList()
+        if (res && res.length > 0) setDaftar(res)
+      } catch (error) {
+        console.error("Error fetching amprah list:", error)
+        toast.error("Gagal memuat daftar amprah")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchAmprahList()
+  }, [])
+
+  const unitNama = akun?.unit_nama || "Unit Kerja"
+
   return (
     <>
-      <PageHeading title="Amprah" desc={`Daftar dokumen amprah P1 ${bendahara.unit}.`} />
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <span className="ml-3 text-sm text-muted-foreground">Memuat daftar amprah...</span>
+        </div>
+      )}
+
+      {!loading && (
+        <>
+      <PageHeading title="Amprah" desc={`Daftar dokumen amprah P1 ${unitNama}.`} />
       <Panel className="overflow-x-auto p-0">
         <table className="w-full min-w-[56rem] text-xs">
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
             <tr>{["Periode", "Nomor Amprah", "Kelompok", "Jumlah Pegawai", "Total Jumlah Netto", "Tanggal Terbit", "Status", "Aksi"].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}</tr>
           </thead>
           <tbody>
-            {DAFTAR_AMPRAH.map((a) => (
+            {daftar.length === 0 && (
+              <tr>
+                <td colSpan={8} className="py-10 text-center text-muted-foreground">
+                  Belum ada dokumen amprah.
+                </td>
+              </tr>
+            )}
+            {daftar.map((a) => (
               <tr key={a.id} className={a.tersedia ? "border-t odd:bg-muted/20" : "border-t bg-muted/30"}>
                 <td className="px-4 py-4"><p className="font-bold">{a.periode}</p>{!a.tersedia && <p className="text-[10px] text-muted-foreground">Menunggu penghitungan pajak oleh UPT Remunerasi.</p>}</td>
                 <td className="px-4 py-4">{a.nomor}</td>
@@ -31,7 +72,7 @@ export default function AmprahListPage() {
                   {a.tersedia ? (
                     <>
                       <Link to={`/bendahara/amprah/${a.id}`} className="hover:underline">Lihat</Link>
-                      <button className="ml-4 inline-flex items-center gap-1 hover:underline" onClick={() => toast.info("Unduh belum tersambung ke backend (dummy).")}><Download className="size-3.5" /> Unduh</button>
+                      <button className="ml-4 inline-flex items-center gap-1 hover:underline" onClick={() => toast.info("Unduh amprah belum tersambung ke backend (dummy).")}><Download className="size-3.5" /> Unduh</button>
                     </>
                   ) : "—"}
                 </td>
@@ -40,6 +81,8 @@ export default function AmprahListPage() {
           </tbody>
         </table>
       </Panel>
+        </>
+      )}
     </>
   )
 }

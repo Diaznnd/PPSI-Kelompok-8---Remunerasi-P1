@@ -104,3 +104,132 @@ export function NonaktifkanDialog({ pegawai, onClose }: { pegawai: PegawaiKep; o
     </Dialog>
   )
 }
+
+export function TugasBelajarDialog({
+  pegawai,
+  onClose,
+  onSuccess,
+}: {
+  pegawai: PegawaiKep
+  onClose: () => void
+  onSuccess?: () => void
+}) {
+  const [statusTubel, setStatusTubel] = useState<"aktif" | "tugas_belajar">(
+    pegawai.status_tugas_belajar === "tugas_belajar" ? "tugas_belajar" : "aktif"
+  )
+  const [sk, setSk] = useState(pegawai.sk_tugas_belajar ?? "")
+  const [tglMulai, setTglMulai] = useState(pegawai.tgl_mulai_tubel ?? "")
+  const [tglSelesai, setTglSelesai] = useState(pegawai.tgl_selesai_tubel ?? "")
+  const [loading, setLoading] = useState(false)
+
+  async function simpan() {
+    setLoading(true)
+    try {
+      // Import kepegawaianService dynamically or call local update
+      const { kepegawaianService } = await import("@/services/kepegawaianService")
+      await kepegawaianService.updateStatusTugasBelajar(pegawai.nip, {
+        status_tugas_belajar: statusTubel,
+        sk_tugas_belajar: statusTubel === "tugas_belajar" ? sk : undefined,
+        tgl_mulai_tubel: statusTubel === "tugas_belajar" ? tglMulai : undefined,
+        tgl_selesai_tubel: statusTubel === "tugas_belajar" ? tglSelesai : undefined,
+      })
+      toast.success(
+        statusTubel === "tugas_belajar"
+          ? `Status ${pegawai.nama} berhasil diubah menjadi Tugas Belajar (Hak P1: 60%).`
+          : `Status ${pegawai.nama} dikembalikan menjadi Aktif (Hak P1: 100%).`
+      )
+    } catch {
+      // Fallback local state
+      ubahPegawai(pegawai.nip, {
+        status_tugas_belajar: statusTubel,
+        sk_tugas_belajar: statusTubel === "tugas_belajar" ? sk : undefined,
+        tgl_mulai_tubel: statusTubel === "tugas_belajar" ? tglMulai : undefined,
+        tgl_selesai_tubel: statusTubel === "tugas_belajar" ? tglSelesai : undefined,
+      })
+      toast.success(`Status ${pegawai.nama} berhasil diperbarui (mode lokal).`)
+    } finally {
+      setLoading(false)
+      onSuccess?.()
+      onClose()
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Kelola Status Tugas Belajar</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg bg-muted/60 p-3">
+            <Avatar nama={pegawai.nama} />
+            <div>
+              <p className="text-sm font-semibold">{pegawai.nama}</p>
+              <p className="text-[11px] text-muted-foreground">{pegawai.nip} • {pegawai.golongan}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900">
+            <p className="font-semibold">Peraturan Rektor No. 2 Tahun 2026 (P1):</p>
+            <p className="mt-0.5">
+              Pegawai yang berstatus <strong>Tugas Belajar</strong> memperoleh insentif P1 sebesar <strong>60%</strong> dari nilai jabatan dan PIR.
+            </p>
+          </div>
+
+          <Bidang label="Status Keaktifan / Tugas Belajar">
+            <Select
+              value={statusTubel}
+              onValueChange={(v) => setStatusTubel(v as "aktif" | "tugas_belajar")}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="aktif">Aktif Bekerja (Hak P1: 100%)</SelectItem>
+                <SelectItem value="tugas_belajar">Tugas Belajar (Hak P1: 60%)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Bidang>
+
+          {statusTubel === "tugas_belajar" && (
+            <>
+              <Bidang label="Nomor SK Tugas Belajar">
+                <Input
+                  value={sk}
+                  onChange={(e) => setSk(e.target.value)}
+                  placeholder="Contoh: SK/082/UN16.R/KP/2025"
+                />
+              </Bidang>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Bidang label="Tanggal Mulai">
+                  <Input
+                    type="date"
+                    value={tglMulai}
+                    onChange={(e) => setTglMulai(e.target.value)}
+                  />
+                </Bidang>
+                <Bidang label="Tanggal Selesai">
+                  <Input
+                    type="date"
+                    value={tglSelesai}
+                    onChange={(e) => setTglSelesai(e.target.value)}
+                  />
+                </Bidang>
+              </div>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Batal
+          </Button>
+          <Button onClick={simpan} disabled={loading}>
+            {loading ? "Menyimpan..." : "Simpan Status"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+

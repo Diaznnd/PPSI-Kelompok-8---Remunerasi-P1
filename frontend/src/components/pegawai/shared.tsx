@@ -2,7 +2,9 @@ import type { ReactNode } from "react"
 import type { LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import type { StatusPengaduan } from "@/data/dummy-pegawai"
+
+// Type definition untuk status pengaduan
+type StatusPengaduan = "Diajukan" | "Ditindaklanjuti" | "Diteruskan" | "Selesai"
 
 export function Panel({ className, children }: { className?: string; children: ReactNode }) {
   return <div className={cn("rounded-xl border bg-card p-6 text-card-foreground", className)}>{children}</div>

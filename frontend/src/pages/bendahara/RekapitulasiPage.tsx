@@ -1,35 +1,93 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/context/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { BULAN_BRUTO, KOMPOSISI, PEGAWAI_AWAL, PERIODE_REKAP, RINGKASAN, hitung } from "@/data/dummy-bendahara"
+import { bendaharaService } from "@/services/bendaharaService"
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-const KONIK = (() => {
-  let akum = 0
-  return KOMPOSISI.map((k) => { const dari = akum; akum += k.persen; return `${k.warna} ${dari}% ${akum}%` }).join(", ")
-})()
-
 export default function RekapitulasiPage() {
-  const [periode, setPeriode] = useState(PERIODE_REKAP[0])
+  const { akun } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [periode, setPeriode] = useState("Oktober 2026")
+  const [periodeList] = useState(["Oktober 2026", "September 2026", "Agustus 2026"])
   const [tab, setTab] = useState<"periode" | "bulan">("periode")
+  const [ringkasan, setRingkasan] = useState<any>({
+    pegawai: 0,
+    remP1: 0,
+    pengurangan: 0,
+    bruto: 0,
+    pajak: 0,
+    netto: 0,
+  })
+  const [trenBulanan, setTrenBulanan] = useState<[string, number][]>([
+    ["Jan", 1020], ["Feb", 1050], ["Mar", 1075], ["Apr", 1090], ["Mei", 1115],
+    ["Jun", 1100], ["Jul", 1140], ["Agu", 1150], ["Sep", 1120], ["Okt", 1128.45],
+  ])
+  const [rows, setRows] = useState<any[]>([])
+  const [komposisi] = useState([
+    { label: "Keterlambatan", persen: 35, warna: "#ef4444" },
+    { label: "PSW", persen: 28, warna: "#f59e0b" },
+    { label: "Sakit", persen: 20, warna: "#3b82f6" },
+    { label: "Alfa", persen: 10, warna: "#8b5cf6" },
+    { label: "Lainnya", persen: 7, warna: "#6b7280" },
+  ])
+
+  const konik = (() => {
+    let akum = 0
+    return komposisi.map((k) => { const dari = akum; akum += k.persen; return `${k.warna} ${dari}% ${akum}%` }).join(", ")
+  })()
+
+  useEffect(() => {
+    const fetchRekapitulasi = async () => {
+      try {
+        setLoading(true)
+        const res = await bendaharaService.getRekapitulasi(periode)
+        if (res?.ringkasan) setRingkasan(res.ringkasan)
+        if (res?.tren_bulanan) setTrenBulanan(res.tren_bulanan)
+        if (res?.data) setRows(res.data)
+      } catch (error) {
+        console.error("Error fetching rekapitulasi:", error)
+        toast.error("Gagal memuat rekapitulasi")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchRekapitulasi()
+  }, [periode])
+
   const dummy = () => toast.info("Ekspor belum tersambung ke backend (dummy).")
-  const rows = PEGAWAI_AWAL.map((p) => ({ p, h: hitung(p) }))
-  const maks = Math.max(...BULAN_BRUTO.map(([, v]) => v))
+  const maks = Math.max(...trenBulanan.map(([, v]) => v))
   const min = 900
 
+  const unitNama = akun?.unit_nama || "Unit Kerja"
+
   const kartu = [
-    ["Total Pegawai", String(RINGKASAN.pegawai)], ["Remunerasi P1", rupiah(RINGKASAN.remP1)], ["Total Pengurangan Kehadiran", rupiah(RINGKASAN.pengurangan)],
-    ["Jumlah Bruto", rupiah(RINGKASAN.bruto)], ["Pajak", rupiah(RINGKASAN.pajak)], ["Jumlah Netto", rupiah(RINGKASAN.netto)],
+    ["Total Pegawai", String(ringkasan.pegawai)],
+    ["Remunerasi P1", rupiah(ringkasan.remP1)],
+    ["Total Pengurangan Kehadiran", rupiah(ringkasan.pengurangan)],
+    ["Jumlah Bruto", rupiah(ringkasan.bruto)],
+    ["Pajak", rupiah(ringkasan.pajak)],
+    ["Jumlah Netto", rupiah(ringkasan.netto)],
   ]
 
   return (
     <>
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <span className="ml-3 text-sm text-muted-foreground">Memuat rekapitulasi...</span>
+        </div>
+      )}
+
+      {!loading && (
+        <>
       <PageHeading
         title="Rekapitulasi P1"
-        desc="Analisis rekap P1 Fakultas Teknologi Informasi."
+        desc={`Analisis rekap P1 ${unitNama}.`}
         action={<div className="flex gap-2"><Button variant="outline" onClick={dummy}>Ekspor Rekap Format Excel</Button><Button variant="outline" onClick={dummy}>Ekspor CSV</Button><Button onClick={dummy}>Ekspor Excel</Button></div>}
       />
 
@@ -38,7 +96,7 @@ export default function RekapitulasiPage() {
           <p className="mb-1.5 text-xs text-muted-foreground">Periode</p>
           <Select value={periode} onValueChange={setPeriode}>
             <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
-            <SelectContent>{PERIODE_REKAP.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+            <SelectContent>{periodeList.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
           </Select>
         </Panel>
 
@@ -66,13 +124,20 @@ export default function RekapitulasiPage() {
                   <tr>{["NIP / Nama", "Jabatan", "Grade", "Remunerasi per Grade Jabatan", "Remunerasi P1", "Pengurangan Kehadiran", "Jumlah Bruto", "Pajak", "Pajak TER", "Tab. Pajak", "Jumlah Netto"].map((h) => <th key={h} className="px-3 py-3 font-medium">{h}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ p, h }) => (
-                    <tr key={p.nip} className="border-t odd:bg-muted/20">
-                      <td className="px-3 py-3"><p className="font-semibold">{p.nama}</p><p className="text-[10px] text-muted-foreground">{p.nip}</p></td>
-                      <td className="px-3 py-3">{p.jabatan}</td><td className="px-3 py-3">{p.grade}</td>
-                      <td className="px-3 py-3">{rupiah(h.remGrade)}</td><td className="px-3 py-3">{rupiah(h.remP1)}</td><td className="px-3 py-3">{rupiah(h.pengurangan)}</td>
-                      <td className="px-3 py-3">{rupiah(h.bruto)}</td><td className="px-3 py-3">{rupiah(p.pajak)}</td><td className="px-3 py-3">Rp 0</td><td className="px-3 py-3">Rp 0</td>
-                      <td className="px-3 py-3 font-bold">{rupiah(h.netto)}</td>
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={11} className="py-10 text-center text-muted-foreground">
+                        Tidak ada data rekapitulasi untuk periode ini.
+                      </td>
+                    </tr>
+                  )}
+                  {rows.map((item: any) => (
+                    <tr key={item.nip} className="border-t odd:bg-muted/20">
+                      <td className="px-3 py-3"><p className="font-semibold">{item.nama}</p><p className="text-[10px] text-muted-foreground">{item.nip}</p></td>
+                      <td className="px-3 py-3">{item.jabatan}</td><td className="px-3 py-3">{item.grade}</td>
+                      <td className="px-3 py-3">{rupiah(item.remGrade || 0)}</td><td className="px-3 py-3">{rupiah(item.remP1 || 0)}</td><td className="px-3 py-3">{rupiah(item.pengurangan || 0)}</td>
+                      <td className="px-3 py-3">{rupiah(item.bruto || 0)}</td><td className="px-3 py-3">{rupiah(item.pajak || 0)}</td><td className="px-3 py-3">Rp 0</td><td className="px-3 py-3">Rp 0</td>
+                      <td className="px-3 py-3 font-bold">{rupiah(item.netto || 0)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -81,7 +146,7 @@ export default function RekapitulasiPage() {
               <table className="w-full text-xs">
                 <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Bulan (2026)</th><th className="px-4 py-3 font-medium">Total Jumlah Bruto</th></tr></thead>
                 <tbody>
-                  {BULAN_BRUTO.map(([b, v]) => <tr key={b} className="border-t odd:bg-muted/20"><td className="px-4 py-3 font-semibold">{b}</td><td className="px-4 py-3">{rupiah(Math.round(v * 1_000_000))}</td></tr>)}
+                  {trenBulanan.map(([b, v]) => <tr key={b} className="border-t odd:bg-muted/20"><td className="px-4 py-3 font-semibold">{b}</td><td className="px-4 py-3">{rupiah(Math.round(v * 1_000_000))}</td></tr>)}
                 </tbody>
               </table>
             )}
@@ -93,7 +158,7 @@ export default function RekapitulasiPage() {
             <h2 className="font-semibold">Tren Total Jumlah Bruto</h2>
             <p className="text-xs text-muted-foreground">Januari–Desember 2026</p>
             <div className="mt-4 flex h-44 items-end gap-3 border-t pt-4">
-              {BULAN_BRUTO.map(([b, v]) => (
+              {trenBulanan.map(([b, v]) => (
                 <div key={b} className="flex flex-1 flex-col items-center gap-1" title={`${b}: Rp ${v.toLocaleString("id-ID")} juta`}>
                   <div className="w-full rounded-t bg-gradient-to-b from-primary/80 to-primary" style={{ height: `${Math.max(8, ((v - min) / (maks - min)) * 100)}%` }} />
                   <span className="text-[10px] text-muted-foreground">{b}</span>
@@ -106,14 +171,14 @@ export default function RekapitulasiPage() {
             <h2 className="font-semibold">Komposisi Pengurangan</h2>
             <p className="text-xs text-muted-foreground">{periode}</p>
             <div className="mt-4 flex items-center gap-5">
-              <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${KONIK})` }}>
+              <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${konik})` }}>
                 <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-card text-center">
                   <span className="text-xs font-bold">Rp 36,35 Jt</span>
                   <span className="text-[8px] text-muted-foreground">Pengurangan Kehadiran</span>
                 </div>
               </div>
               <ul className="space-y-2 text-[11px]">
-                {KOMPOSISI.map((k) => (
+                {komposisi.map((k) => (
                   <li key={k.label} className="flex items-center gap-2"><span className="size-2 rounded-sm" style={{ background: k.warna }} />{k.label}<b className="ml-auto pl-3">{k.persen}%</b></li>
                 ))}
               </ul>
@@ -121,6 +186,8 @@ export default function RekapitulasiPage() {
           </Panel>
         </div>
       </div>
+        </>
+      )}
     </>
   )
 }

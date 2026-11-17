@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { Search, Receipt, AlertTriangle } from "lucide-react"
+import { Search, Receipt, AlertTriangle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import {
   PageHeader,
   StatusBadge,
@@ -15,10 +16,11 @@ import {
   type UPTPengajuan,
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 type SlipBatchStatus = "terbit" | "gagal_sebagian" | "belum_terbit"
 
-function deriveSlipRow(item: UPTPengajuan): {
+function deriveSlipRow(item: any): {
   nettoSiap: boolean
   terbit: number
   gagal: number
@@ -35,34 +37,52 @@ function deriveSlipRow(item: UPTPengajuan): {
       slipStatus: "belum_terbit",
     }
   }
-  if (item.unit.includes("Penelitian")) {
-    const gagal = 2
-    return {
-      nettoSiap: true,
-      terbit: item.pegawai - gagal,
-      gagal,
-      total: item.pegawai,
-      slipStatus: "gagal_sebagian",
-    }
-  }
+  // Check if any slip published
+  const terbit = item.slip_terbit_count || 0
+  const total = item.pegawai
+  const gagal = total - terbit
+  
   return {
     nettoSiap: true,
-    terbit: item.pegawai,
-    gagal: 0,
-    total: item.pegawai,
-    slipStatus: "terbit",
+    terbit,
+    gagal,
+    total,
+    slipStatus: terbit === total ? "terbit" : gagal > 0 ? "gagal_sebagian" : "belum_terbit",
   }
 }
 
 export default function SlipP1Page() {
   const { periode: activePeriode } = usePeriode()
+  const [loading, setLoading] = useState(true)
+  const [pengajuanList, setPengajuanList] = useState<any[]>([])
   const [periodeFilter, setPeriodeFilter] = useState(activePeriode || "semua")
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
   const [search, setSearch] = useState("")
 
+  useEffect(() => {
+    fetchPenerbitan()
+  }, [periodeFilter])
+
+  const fetchPenerbitan = async () => {
+    try {
+      setLoading(true)
+      const periode = periodeFilter === "semua" ? activePeriode : periodeFilter
+      const res = await uptRemunerasiService.getPenerbitanSlipList(periode)
+      
+      setPengajuanList(res.data || [])
+    } catch (error) {
+      console.error("Error fetching penerbitan slip:", error)
+      toast.error("Gagal memuat data slip. Menggunakan data dummy.")
+      // Fallback to dummy data
+      setPengajuanList(pengajuanUPT)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const rows = useMemo(() => {
-    return pengajuanUPT
+    return pengajuanList
       .map((item) => ({
         item,
         ...deriveSlipRow(item),
@@ -78,7 +98,15 @@ export default function SlipP1Page() {
           row.item.id.toLowerCase().includes(q)
         return matchPeriode && matchUnit && matchStatus && matchSearch
       })
-  }, [periodeFilter, unitFilter, statusFilter, search])
+  }, [pengajuanList, periodeFilter, unitFilter, statusFilter, search])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

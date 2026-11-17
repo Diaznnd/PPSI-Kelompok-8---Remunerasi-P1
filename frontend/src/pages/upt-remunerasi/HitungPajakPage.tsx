@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link } from "react-router-dom"
-import { Search, Calculator, CheckCircle2, Clock } from "lucide-react"
+import { Search, Calculator, CheckCircle2, Clock, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import {
   PageHeader,
   StatCard,
@@ -19,6 +20,7 @@ import {
   rupiah,
   type UPTPengajuan,
 } from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 export default function HitungPajakPage() {
   const { periode: activePeriode } = usePeriode()
@@ -26,9 +28,50 @@ export default function HitungPajakPage() {
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
   const [search, setSearch] = useState("")
+  const [data, setData] = useState<UPTPengajuan[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchHitungPajakList = async () => {
+      try {
+        setLoading(true)
+        const periode = periodeFilter !== "semua" ? periodeFilter : activePeriode
+        const response = await uptRemunerasiService.getHitungPajakList(periode)
+
+        if (response.success && response.data) {
+          // Map API response to UPTPengajuan format
+          const mappedData: UPTPengajuan[] = response.data.map((item: any) => ({
+            id: item.id.toString(),
+            unit: item.unit?.nama || item.unit_nama || "-",
+            periode: item.periode,
+            pegawai: item.jumlah_pegawai || item.total_pegawai || 0,
+            total: item.total_p1_setelah_potongan || item.total || 0,
+            netto: item.total_netto || 0,
+            status: item.status,
+            bendahara: item.bendahara_nama || "-",
+            tanggalVerifikasi: item.tanggal_verifikasi || item.verified_at,
+          }))
+          setData(mappedData)
+        } else {
+          // Fallback to dummy data
+          console.warn("API returned no data, using dummy fallback")
+          setData(pengajuanUPT)
+        }
+      } catch (error) {
+        console.error("Error fetching hitung pajak list:", error)
+        toast.error("Gagal memuat daftar hitung pajak. Menggunakan data dummy.")
+        setData(pengajuanUPT)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchHitungPajakList()
+  }, [periodeFilter, activePeriode])
 
   const filteredData = useMemo(() => {
-    return pengajuanUPT.filter((item) => {
+    return data.filter((item) => {
       const matchPeriode = periodeFilter === "semua" || item.periode === periodeFilter
       const matchUnit = unitFilter === "semua" || item.unit === unitFilter
       const matchStatus = statusFilter === "semua" || item.status === statusFilter
@@ -41,11 +84,11 @@ export default function HitungPajakPage() {
 
       return matchPeriode && matchUnit && matchStatus && matchSearch
     })
-  }, [periodeFilter, unitFilter, statusFilter, search])
+  }, [data, periodeFilter, unitFilter, statusFilter, search])
 
   const stats = useMemo(() => {
-    const menunggu = pengajuanUPT.filter((p) => p.status === "terverifikasi").length
-    const sudahNetto = pengajuanUPT.filter(
+    const menunggu = data.filter((p) => p.status === "terverifikasi").length
+    const sudahNetto = data.filter(
       (p) => p.status === "netto_ditetapkan" || p.status === "amprah_tersedia"
     )
     const totalNetto = sudahNetto.reduce((acc, cur) => acc + cur.netto, 0)
@@ -55,7 +98,7 @@ export default function HitungPajakPage() {
       nettoCount: sudahNetto.length,
       totalNetto,
     }
-  }, [])
+  }, [data])
 
   const columns: ColumnDef<UPTPengajuan>[] = [
     {
@@ -115,6 +158,14 @@ export default function HitungPajakPage() {
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+        </div>
+      )}
+      
+      {!loading && (
+        <>
       <PageHeader
         title="Hitung Pajak & P1 Netto"
         subtitle="Hitung PPh Pasal 21 TER dan tetapkan P1 Netto dari pengajuan unit yang telah Terverifikasi."
@@ -200,6 +251,8 @@ export default function HitungPajakPage() {
         data={filteredData}
         emptyText="Tidak ada pengajuan yang sesuai dengan filter."
       />
+        </>
+      )}
     </div>
   )
 }

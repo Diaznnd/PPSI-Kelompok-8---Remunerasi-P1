@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import {
   AlertCircle,
@@ -22,17 +22,10 @@ import {
   Card,
   CardContent,
 } from "./components"
-import {
-  auditUPT,
-  pengajuanUPT,
-  pengaduanUPT,
-  usulanJabatanDetailList,
-  penugasanUnitListInitial,
-  akunPenggunaInitial,
-  rupiah,
-  unitKerja,
-} from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { useToast } from "@/hooks/use-toast"
+import { rupiah } from "@/data/dummy-upt"
 
 function MiniStepper({ status }: { status: string }) {
   const step =
@@ -64,30 +57,54 @@ export default function BerandaUptRemunerasiPage() {
   const navigate = useNavigate()
   const { periode } = usePeriode()
   const [statusFilter, setStatusFilter] = useState("semua")
-  const [simulatedError, setSimulatedError] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [dashboard, setDashboard] = useState<any>(null)
+  const [alerts, setAlerts] = useState<any>(null)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    loadDashboard()
+  }, [periode])
+
+  const loadDashboard = async () => {
+    setLoading(true)
+    try {
+      const [dashboardData, alertsData] = await Promise.all([
+        uptRemunerasiService.getDashboard(periode),
+        uptRemunerasiService.getAlerts(periode),
+      ])
+      setDashboard(dashboardData)
+      setAlerts(alertsData)
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Gagal Memuat Dashboard",
+        description: error.response?.data?.message || "Terjadi kesalahan saat memuat data dashboard",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const waitingHitungCount = useMemo(
-    () => pengajuanUPT.filter((p) => p.status === "terverifikasi").length,
-    []
+    () => dashboard?.statistik?.menunggu_hitung_pajak || 0,
+    [dashboard]
   )
   const readyAmprahCount = useMemo(
-    () => pengajuanUPT.filter((p) => p.status === "netto_ditetapkan").length,
-    []
+    () => (dashboard?.pengajuan_unit || []).filter((p: any) => p.status === "netto_ditetapkan").length,
+    [dashboard]
   )
   const slipBelumTerbitCount = useMemo(
-    () =>
-      pengajuanUPT
-        .filter((p) => p.status !== "netto_ditetapkan" && p.status !== "amprah_tersedia")
-        .reduce((acc, p) => acc + p.pegawai, 0),
-    []
+    () => (dashboard?.pengajuan_unit || []).filter((p: any) => !["selesai", "amprah_tersedia"].includes(p.status)).reduce((acc: number, p: any) => acc + p.pegawai, 0),
+    [dashboard]
   )
   const eskalasiCount = useMemo(
-    () => pengaduanUPT.filter((p) => p.status === "diteruskan" || p.status === "Diteruskan").length,
-    []
+    () => dashboard?.statistik?.pengaduan_eskalasi || 0,
+    [dashboard]
   )
   const usulanMenungguCount = useMemo(
-    () => usulanJabatanDetailList.filter((u) => u.status === "terverifikasi").length,
-    []
+    () => dashboard?.statistik?.menunggu_penetapan_jabatan || 0,
+    [dashboard]
   )
 
   const statCards = [
@@ -129,22 +146,24 @@ export default function BerandaUptRemunerasiPage() {
   ]
 
   const filteredUnits = useMemo(() => {
-    return pengajuanUPT.filter(
-      (p) => statusFilter === "semua" || p.status === statusFilter
+    if (!dashboard?.pengajuan_unit) return []
+    return dashboard.pengajuan_unit.filter(
+      (p: any) => statusFilter === "semua" || p.status === statusFilter
     )
-  }, [statusFilter])
+  }, [statusFilter, dashboard])
 
   const perluTindakan = useMemo(() => {
+    if (!dashboard?.pengajuan_unit) return []
     const items: { id: string; unit: string; tugas: string; tanggal: string; status: string; to: string }[] = []
 
-    pengajuanUPT
-      .filter((p) => p.status === "terverifikasi" || p.status === "netto_ditetapkan")
-      .forEach((p) => {
+    dashboard.pengajuan_unit
+      .filter((p: any) => p.status === "terverifikasi" || p.status === "netto_ditetapkan")
+      .forEach((p: any) => {
         items.push({
           id: p.id,
           unit: p.unit,
           tugas: p.status === "terverifikasi" ? "Hitung Pajak & P1 Netto" : "Susun Amprah Pembayaran",
-          tanggal: p.diajukanPada || "18 Okt 2026",
+          tanggal: p.diajukan_pada || "-",
           status: p.status,
           to:
             p.status === "terverifikasi"
@@ -153,27 +172,18 @@ export default function BerandaUptRemunerasiPage() {
         })
       })
 
-    usulanJabatanDetailList
-      .filter((u) => u.status === "terverifikasi")
-      .forEach((u) => {
-        items.push({
-          id: u.id,
-          unit: u.unit,
-          tugas: `Penetapan Jabatan (${u.pegawai})`,
-          tanggal: u.tanggalPengajuan,
-          status: u.status,
-          to: `/upt-remunerasi/penetapan/${u.id}`,
-        })
-      })
-
     return items.sort((a, b) => a.tanggal.localeCompare(b.tanggal))
-  }, [])
+  }, [dashboard])
 
-  const unitTanpaBendahara = penugasanUnitListInitial.filter((u) => !u.bendahara).length
-  const unitTanpaKepegawaian = penugasanUnitListInitial.filter((u) => !u.kepegawaian).length
-  const akunPegawaiNonaktif = akunPenggunaInitial.filter((a) => a.pegawaiStatusAktif === "nonaktif").length
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
-  if (simulatedError) {
+  if (!dashboard) {
     return (
       <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-10 text-center space-y-3">
         <AlertCircle className="mx-auto size-10 text-rose-600" />
@@ -183,7 +193,7 @@ export default function BerandaUptRemunerasiPage() {
           variant="outline"
           size="sm"
           className="gap-2 border-rose-300"
-          onClick={() => setSimulatedError(false)}
+          onClick={loadDashboard}
         >
           <RefreshCw className="size-4" /> Muat Ulang
         </Button>
@@ -264,20 +274,20 @@ export default function BerandaUptRemunerasiPage() {
               </div>
             </div>
             <div className="mt-6 flex h-56 items-end gap-4 sm:gap-6 border-b px-2 overflow-x-auto">
-              {unitKerja.slice(0, 7).map((unit) => {
-                const value = pengajuanUPT.find((item) => item.unit === unit.nama)?.netto ?? 0
+              {(dashboard?.pengajuan_unit || []).slice(0, 7).map((unit: any) => {
+                const value = unit.netto || 0
                 const heightPct = Math.max(12, Math.round((value / 600_000_000) * 100))
                 return (
-                  <div key={unit.kode} className="flex flex-1 min-w-[54px] flex-col items-center justify-end gap-2">
+                  <div key={unit.unit_id} className="flex flex-1 min-w-[54px] flex-col items-center justify-end gap-2">
                     <span className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
                       {Math.round(value / 1_000_000)} jt
                     </span>
                     <div
                       className="w-full max-w-[36px] rounded-t-md bg-primary transition-all hover:bg-primary/80"
                       style={{ height: `${heightPct}%` }}
-                      title={`${unit.nama}: ${rupiah(value)}`}
+                      title={`${unit.unit}: ${rupiah(value)}`}
                     />
-                    <span className="text-[11px] font-medium text-muted-foreground">{unit.kode}</span>
+                    <span className="text-[11px] font-medium text-muted-foreground truncate max-w-[54px]">{unit.unit}</span>
                   </div>
                 )
               })}
@@ -296,12 +306,12 @@ export default function BerandaUptRemunerasiPage() {
               </Link>
             </div>
             <ul className="space-y-3 max-h-64 overflow-y-auto pr-1">
-              {auditUPT.slice(0, 10).map((item) => (
+              {(dashboard?.audit_terbaru || []).slice(0, 10).map((item: any) => (
                 <li key={item.id} className="flex gap-2.5 text-xs border-b pb-2 last:border-0">
                   <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate">
-                      <span className="font-semibold">{item.pelaku}</span> — {item.aksi}{" "}
+                      <span className="font-semibold">{item.aktor}</span> — {item.aksi}{" "}
                       <span className="font-mono text-primary">{item.objek}</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground">{item.waktu}</p>
@@ -382,34 +392,27 @@ export default function BerandaUptRemunerasiPage() {
           <Card className="border-amber-200 bg-amber-50/30">
             <CardContent className="p-5 space-y-3">
               <h3 className="font-semibold text-sm text-amber-950 flex items-center gap-2">
-                <ShieldAlert className="size-4 text-amber-600" /> Peringatan Konfigurasi
+                <ShieldAlert className="size-4 text-amber-600" /> Peringatan & Alert
               </h3>
-              <ul className="space-y-2 text-xs text-amber-900">
-                <li className="flex items-center justify-between rounded-lg border border-amber-200/80 bg-white/80 p-2.5">
-                  <span>Unit tanpa Bendahara aktif: <strong>{unitTanpaBendahara}</strong></span>
-                  <Link to="/upt-remunerasi/penugasan" className="text-primary font-medium hover:underline">
-                    Cek
-                  </Link>
-                </li>
-                <li className="flex items-center justify-between rounded-lg border border-amber-200/80 bg-white/80 p-2.5">
-                  <span>Unit tanpa Kepegawaian aktif: <strong>{unitTanpaKepegawaian}</strong></span>
-                  <Link to="/upt-remunerasi/penugasan" className="text-primary font-medium hover:underline">
-                    Tugaskan
-                  </Link>
-                </li>
-                <li className="flex items-center justify-between rounded-lg border border-amber-200/80 bg-white/80 p-2.5">
-                  <span>Batas jadwal SK Penetapan: <strong>2 hari lagi</strong></span>
-                  <Link to="/upt-remunerasi/periode" className="text-primary font-medium hover:underline">
-                    Jadwal
-                  </Link>
-                </li>
-                <li className="flex items-center justify-between rounded-lg border border-amber-200/80 bg-white/80 p-2.5">
-                  <span>Akun milik pegawai nonaktif: <strong>{akunPegawaiNonaktif}</strong></span>
-                  <Link to="/upt-remunerasi/akun" className="text-primary font-medium hover:underline">
-                    Tinjau
-                  </Link>
-                </li>
-              </ul>
+              {alerts && alerts.total_alerts > 0 ? (
+                <ul className="space-y-2 text-xs text-amber-900">
+                  {alerts.alerts.slice(0, 4).map((alert: any, idx: number) => (
+                    <li key={idx} className="flex items-center justify-between rounded-lg border border-amber-200/80 bg-white/80 p-2.5">
+                      <div className="flex-1 pr-2">
+                        <p className="font-semibold">{alert.judul}</p>
+                        <p className="text-[11px] text-muted-foreground">{alert.pesan}</p>
+                      </div>
+                      <Badge variant={alert.prioritas === "kritis" ? "destructive" : "default"} className="text-[10px]">
+                        {alert.prioritas}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-amber-900 italic py-4 text-center">
+                  Tidak ada alert saat ini
+                </p>
+              )}
             </CardContent>
           </Card>
 

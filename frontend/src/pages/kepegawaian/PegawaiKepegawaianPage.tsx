@@ -1,20 +1,24 @@
-import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Download, Plus, Search, UserCheck, UserMinus, UserRoundX, Users, type LucideIcon } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronLeft, ChevronRight, Download, Loader2, Plus, Search, UserCheck, UserMinus, UserRoundX, Users, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar } from "@/components/kepegawaian/ui"
-import { FormPegawaiDialog, NonaktifkanDialog } from "@/components/kepegawaian/PegawaiDialogs"
+import { FormPegawaiDialog, NonaktifkanDialog, TugasBelajarDialog } from "@/components/kepegawaian/PegawaiDialogs"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { JENIS_PEGAWAI, STATUS_PEGAWAI, pengaliDari, type PegawaiKep } from "@/data/dummy-kepegawaian"
 import { aktifkanPegawai, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 
 const UKURAN = 8
 
 export default function PegawaiKepegawaianPage() {
-  const { pegawai } = useKepeg()
+  const { pegawai: pegawaiDummy } = useKepeg()
+  const [loading, setLoading] = useState(true)
+  const [pegawai, setPegawai] = useState<any[]>([])
+  const [unitKerja, setUnitKerja] = useState<string>("")
   const [q, setQ] = useState("")
   const [jenis, setJenis] = useState("semua")
   const [status, setStatus] = useState("semua")
@@ -22,6 +26,49 @@ export default function PegawaiKepegawaianPage() {
   const [hal, setHal] = useState(1)
   const [form, setForm] = useState<"baru" | PegawaiKep | null>(null)
   const [nonaktif, setNonaktif] = useState<PegawaiKep | null>(null)
+  const [tubel, setTubel] = useState<PegawaiKep | null>(null)
+
+  // Fetch data pegawai dari API
+  const fetchPegawai = async () => {
+    try {
+      setLoading(true)
+      const res = await kepegawaianService.getPegawaiList()
+      
+      // Map API response to frontend format
+      const mappedData = res.data.map((p: any) => ({
+        nip: p.NIP,
+        nama: p.nama,
+        jenis: p.jenis,
+        status: p.status_kepegawaian,
+        status_tugas_belajar: p.status_tugas_belajar,
+        golongan: p.pangkat_golongan,
+        jabatan: p.jabatan?.nama || null,
+        grade: p.jabatan?.grade_nama || null,
+        aktif: p.aktif,
+        email: p.email || "",
+        unit_id: p.unit_id,
+        unit_nama: p.unit_nama,
+        persen_hak_p1: p.persen_hak_p1,
+        sk_tugas_belajar: p.sk_tugas_belajar,
+        tgl_mulai_tubel: p.tgl_mulai_tubel,
+        tgl_selesai_tubel: p.tgl_selesai_tubel,
+      }))
+      
+      setPegawai(mappedData)
+      setUnitKerja(res.unit_kerja || "")
+    } catch (error) {
+      console.error("Error fetching pegawai:", error)
+      toast.error("Gagal memuat data pegawai. Menggunakan data dummy.")
+      // Fallback to dummy data
+      setPegawai(pegawaiDummy)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPegawai()
+  }, [pegawaiDummy])
 
   const hasil = useMemo(() => pegawai
     .filter((p) => (p.nama + p.nip + p.email).toLowerCase().includes(q.toLowerCase()))
@@ -41,11 +88,19 @@ export default function PegawaiKepegawaianPage() {
     [pegawai.filter((p) => !p.aktif).length, "Nonaktif (tidak dihitung)", UserRoundX],
   ]
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   return (
     <>
       <PageHeading
         title="Data Pegawai"
-        desc="Kelola identitas pegawai Fakultas Teknologi Informasi. Jabatan dan grade hanya berubah melalui usulan yang ditetapkan UPT Remunerasi."
+        desc={`Kelola identitas pegawai ${unitKerja}. Jabatan dan grade hanya berubah melalui usulan yang ditetapkan UPT Remunerasi.`}
         action={<Button onClick={() => setForm("baru")}><Plus /> Tambah Pegawai</Button>}
       />
       <div className="space-y-4">
@@ -78,12 +133,22 @@ export default function PegawaiKepegawaianPage() {
                   <tr key={p.nip} className="border-t odd:bg-muted/20">
                     <td className="px-4 py-3"><div className="flex items-center gap-2.5"><Avatar nama={p.nama} /><div><p className="font-semibold">{p.nama}</p><p className="text-[10px] text-muted-foreground">{p.nip}</p></div></div></td>
                     <td className="px-4 py-3">{p.jenis}</td>
-                    <td className="px-4 py-3"><p>{p.status}</p><p className="text-[10px] text-muted-foreground">Pengali {pengaliDari(p.status)}%</p></td>
+                    <td className="px-4 py-3">
+                      <p>{p.status}</p>
+                      {p.status_tugas_belajar === "tugas_belajar" ? (
+                        <span className="inline-block mt-0.5 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800">
+                          Tugas Belajar (60%)
+                        </span>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground">Pengali {pengaliDari(p.status)}%</p>
+                      )}
+                    </td>
                     <td className="px-4 py-3">{p.golongan}</td>
                     <td className="px-4 py-3">{p.jabatan ? <><p>{p.jabatan}</p><p className="text-[10px] text-muted-foreground">Grade {p.grade}</p></> : <span className="text-muted-foreground">Belum ada</span>}</td>
                     <td className="px-4 py-3">{p.aktif ? <Badge variant="outline" className="border-emerald-200 bg-emerald-100 text-emerald-800">Aktif</Badge> : <Badge variant="secondary">Nonaktif</Badge>}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-semibold">
                       <button className="text-primary hover:underline" onClick={() => setForm(p)}>Ubah</button>
+                      <button className="ml-3 text-sky-600 hover:underline" onClick={() => setTubel(p)}>Status Tubel</button>
                       {p.aktif
                         ? <button className="ml-3 text-destructive hover:underline" onClick={() => setNonaktif(p)}>Nonaktifkan</button>
                         : <button className="ml-3 text-primary hover:underline" onClick={() => { aktifkanPegawai(p.nip); toast.success(`${p.nama} diaktifkan kembali.`) }}>Aktifkan</button>}
@@ -107,6 +172,7 @@ export default function PegawaiKepegawaianPage() {
 
       {form && <FormPegawaiDialog pegawai={form === "baru" ? undefined : form} onClose={() => setForm(null)} />}
       {nonaktif && <NonaktifkanDialog pegawai={nonaktif} onClose={() => setNonaktif(null)} />}
+      {tubel && <TugasBelajarDialog pegawai={tubel} onClose={() => setTubel(null)} onSuccess={fetchPegawai} />}
     </>
   )
 }

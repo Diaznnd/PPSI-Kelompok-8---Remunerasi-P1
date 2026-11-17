@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
         'peran' => \App\Http\Middleware\CekPeran::class,
+        'ability' => \App\Http\Middleware\CheckAbility::class,
     ]);
 })
     ->withExceptions(function (Exceptions $exceptions): void {

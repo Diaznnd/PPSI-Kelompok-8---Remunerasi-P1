@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   Lock,
   Search,
@@ -6,6 +6,7 @@ import {
   Download,
   AlertCircle,
   ShieldCheck,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -19,12 +20,11 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  auditUPT,
-  unitKerja,
   type JejakAuditItem,
   type JejakAuditAksi,
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 const AKSI_LIST: JejakAuditAksi[] = [
   "Buat",
@@ -53,6 +53,8 @@ const AKSI_BADGE_STYLE: Record<JejakAuditAksi, string> = {
 }
 
 export default function JejakAuditUPTPage() {
+  const [loading, setLoading] = useState(true)
+  const [auditData, setAuditData] = useState<JejakAuditItem[]>([])
   const [search, setSearch] = useState("")
   const [tanggalAwal, setTanggalAwal] = useState("")
   const [tanggalAkhir, setTanggalAkhir] = useState("")
@@ -64,15 +66,51 @@ export default function JejakAuditUPTPage() {
   const [selectedAudit, setSelectedAudit] = useState<JejakAuditItem | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
-  const pelakuOptions = useMemo(() => Array.from(new Set(auditUPT.map((a) => a.pelaku))), [])
-  const peranOptions = useMemo(() => Array.from(new Set(auditUPT.map((a) => a.peran))), [])
+  useEffect(() => {
+    loadAuditLogs()
+  }, [])
+
+  const loadAuditLogs = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getAuditLogs()
+      
+      // Map API response to component format
+      const mapped: JejakAuditItem[] = (res.data || []).map((item: any) => ({
+        id: item.id.toString(),
+        waktu: item.waktu || item.created_at || "-",
+        pelaku: item.pelaku || item.aktor || "Sistem",
+        peran: item.peran || "Unknown",
+        unit: item.unit || "N/A",
+        aksi: item.aksi as JejakAuditAksi || "Buat",
+        objek: item.objek || item.objek_type || "-",
+        detail: item.detail || item.alasan || "-",
+        alasan: item.alasan || null,
+        perubahan: item.perubahan || [],
+        tanggal: item.tanggal || item.created_at?.split(" ")[0] || "",
+      }))
+      
+      setAuditData(mapped)
+    } catch (error: any) {
+      console.error("Error loading audit logs:", error)
+      toast.error("Gagal memuat jejak audit")
+      // Fallback to empty data
+      setAuditData([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const pelakuOptions = useMemo(() => Array.from(new Set(auditData.map((a) => a.pelaku))), [auditData])
+  const peranOptions = useMemo(() => Array.from(new Set(auditData.map((a) => a.peran))), [auditData])
+  const unitOptions = useMemo(() => Array.from(new Set(auditData.map((a) => a.unit))), [auditData])
 
   const isDateRangeInvalid = Boolean(tanggalAwal && tanggalAkhir && tanggalAkhir < tanggalAwal)
 
   const filteredData = useMemo(() => {
     if (isDateRangeInvalid) return []
 
-    return auditUPT.filter((item) => {
+    return auditData.filter((item) => {
       const q = search.toLowerCase().trim()
       const matchSearch =
         !q ||
@@ -108,6 +146,7 @@ export default function JejakAuditUPTPage() {
     unitFilter,
     peranFilter,
     isDateRangeInvalid,
+    auditData,
   ])
 
   const hasActiveFilters =
@@ -195,6 +234,14 @@ export default function JejakAuditUPTPage() {
       className: "w-36 text-right",
     },
   ]
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -310,11 +357,9 @@ export default function JejakAuditUPTPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs focus:ring-1 focus:ring-ring"
           >
             <option value="semua">Semua Unit Kerja</option>
-            <option value="Universitas Andalas">Universitas Andalas</option>
-            <option value="UPT Remunerasi">UPT Remunerasi</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {unitOptions.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
               </option>
             ))}
           </select>
@@ -329,7 +374,7 @@ export default function JejakAuditUPTPage() {
 
         {hasActiveFilters && (
           <div className="flex items-center justify-between pt-1 border-t text-xs text-muted-foreground">
-            <span>Menampilkan {filteredData.length} dari {auditUPT.length} catatan audit</span>
+            <span>Menampilkan {filteredData.length} dari {auditData.length} catatan audit</span>
             <Button
               variant="link"
               size="sm"

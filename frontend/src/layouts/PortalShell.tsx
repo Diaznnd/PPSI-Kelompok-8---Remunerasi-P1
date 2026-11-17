@@ -17,12 +17,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
-export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string } // grup = judul kelompok menu (default "MENU UTAMA")
+export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string }
 
 type Props = {
   home: string
   nav: NavItem[]
-  user: { nama: string; inisial: string; peran: string }
+  user: { nama: string; inisial: string; peran: string; unit?: string }
+  secondaryNav?: { title: string; items: NavItem[] }
   headerLeft?: ReactNode
   notificationSlot?: ReactNode
   outletContext?: unknown
@@ -33,6 +34,7 @@ export default function PortalShell({
   home,
   nav,
   user,
+  secondaryNav,
   headerLeft,
   notificationSlot,
   outletContext,
@@ -40,6 +42,11 @@ export default function PortalShell({
 }: Props) {
   const { logout } = useAuth()
   const [konfirmasi, setKonfirmasi] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const toggleSidebar = () => setCollapsed((c) => !c)
+
   // kelompokkan menu berurutan berdasarkan `grup`
   const kelompok = nav.reduce<{ judul: string; item: NavItem[] }[]>((acc, n) => {
     const judul = n.grup ?? "MENU UTAMA"
@@ -49,14 +56,84 @@ export default function PortalShell({
     return acc
   }, [])
 
+  function renderNav(onClick?: () => void) {
+    return (
+      <>
+        {/* Kelompok menu utama */}
+        {kelompok.map((g) => (
+          <div key={g.judul} className="space-y-1">
+            {!collapsed && (
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                {g.judul}
+              </p>
+            )}
+            {g.item.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClick}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    collapsed && "justify-center",
+                    isActive
+                      ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )
+                }
+              >
+                <Icon className="size-4 shrink-0" />
+                {!collapsed && label}
+              </NavLink>
+            ))}
+          </div>
+        ))}
+
+        {/* Seksi tambahan: Portal Mandiri Pegawai (untuk akun multi-role) */}
+        {secondaryNav && secondaryNav.items.length > 0 && (
+          <div className="space-y-1">
+            {!collapsed && (
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                {secondaryNav.title}
+              </p>
+            )}
+            {secondaryNav.items.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={onClick}
+                title={collapsed ? label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    collapsed && "justify-center",
+                    isActive
+                      ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  )
+                }
+              >
+                <Icon className="size-4 shrink-0" />
+                {!collapsed && label}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </>
+    )
+  }
+
   return (
     <div className="flex min-h-screen bg-muted/30">
+      {/* Sidebar Desktop */}
       <aside
         className={cn(
           "sticky top-0 hidden h-screen shrink-0 flex-col overflow-x-hidden border-r bg-card transition-[width] duration-200 ease-in-out md:flex",
           collapsed ? "w-[72px]" : "w-[272px]"
         )}
       >
+        {/* Logo */}
         <Link
           to={home}
           title={collapsed ? "SIREMUN-P1 — Universitas Andalas" : undefined}
@@ -65,8 +142,12 @@ export default function PortalShell({
             collapsed ? "justify-center px-2" : "gap-3 px-5"
           )}
         >
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <GraduationCap className="size-5" />
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl text-primary-foreground shadow-sm">
+            <img
+              src="/LOGO UNAND.svg"
+              alt="Logo Universitas Andalas"
+              className="h-full w-full object-contain"
+            />
           </div>
           {!collapsed && (
             <div className="min-w-0 leading-tight">
@@ -76,37 +157,30 @@ export default function PortalShell({
           )}
         </Link>
 
-        <nav className="flex-1 space-y-6 px-3 py-4">
-          {kelompok.map((g) => (
-            <div key={g.judul} className="space-y-1">
-              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">{g.judul}</p>
-              {g.item.map(({ to, label, icon: Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    cn(
-                      "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                      isActive
-                        ? "bg-primary/10 font-medium text-primary before:absolute before:-left-3 before:bottom-1 before:top-1 before:w-0.5 before:bg-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    )
-                  }
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-          ))}
+        {/* Navigasi */}
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+          {renderNav()}
+
+          {/* Akun / Keluar */}
           <div className="space-y-1">
-            <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">AKUN</p>
-            <button onClick={() => setKonfirmasi(true)} className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10">
-              <LogOut className="size-4" />
-              Keluar
+            {!collapsed && (
+              <p className="px-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground">AKUN</p>
+            )}
+            <button
+              onClick={() => setKonfirmasi(true)}
+              title={collapsed ? "Keluar" : undefined}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10",
+                collapsed && "justify-center"
+              )}
+            >
+              <LogOut className="size-4 shrink-0" />
+              {!collapsed && "Keluar"}
             </button>
           </div>
         </nav>
+
+        {/* Info periode */}
         {!collapsed && (
           <div className="m-3 shrink-0 rounded-lg bg-primary/5 p-3">
             <p className="text-[11px] text-muted-foreground">Periode aktif</p>
@@ -116,9 +190,12 @@ export default function PortalShell({
         )}
       </aside>
 
+      {/* Konten Utama */}
       <div className="flex min-w-0 flex-1 flex-col">
+        {/* Header */}
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b bg-card px-4 md:px-8">
           <div className="flex min-w-0 items-center gap-2.5">
+            {/* Mobile menu */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" size="icon" className="md:hidden" aria-label="Buka menu navigasi">
@@ -137,14 +214,11 @@ export default function PortalShell({
                     </span>
                   </SheetTitle>
                 </SheetHeader>
-                <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
-                  {navigation(true, false)}
-                  <div className="mt-7 border-t pt-5">
+                <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+                  {renderNav(() => setMobileMenuOpen(false))}
+                  <div className="border-t pt-4">
                     <button
-                      onClick={() => {
-                        setMobileMenuOpen(false)
-                        setKonfirmasi(true)
-                      }}
+                      onClick={() => { setMobileMenuOpen(false); setKonfirmasi(true) }}
                       className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
                     >
                       <LogOut className="size-4" />
@@ -155,6 +229,7 @@ export default function PortalShell({
               </SheetContent>
             </Sheet>
 
+            {/* Toggle sidebar desktop */}
             <Button
               type="button"
               variant="ghost"
@@ -169,6 +244,8 @@ export default function PortalShell({
 
             <div className="min-w-0 truncate">{headerLeft}</div>
           </div>
+
+          {/* Kanan header */}
           <div className="flex items-center gap-3">
             {notificationSlot ?? (
               <Button variant="outline" size="icon" aria-label="Notifikasi">
@@ -178,22 +255,46 @@ export default function PortalShell({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-md px-1 py-1 outline-none hover:bg-muted">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{user.inisial}</span>
-                  <span className="hidden text-left leading-tight sm:block"><span className="block text-sm font-semibold">{user.nama}</span><span className="block text-[11px] text-muted-foreground">{user.peran}</span></span>
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {user.inisial}
+                  </span>
+                  <span className="hidden text-left leading-tight sm:block">
+                    <span className="block text-sm font-semibold">{user.nama}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {user.peran}{user.unit ? ` • ${user.unit}` : ""}
+                    </span>
+                  </span>
                   <ChevronDown className="size-4 text-muted-foreground" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" onSelect={() => setKonfirmasi(true)}><LogOut /> Keluar</DropdownMenuItem></DropdownMenuContent>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem variant="destructive" onSelect={() => setKonfirmasi(true)}>
+                  <LogOut /> Keluar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
-        <main className={cn("mx-auto w-full flex-1 p-4 md:p-8", lebar)}><Outlet context={outletContext} /></main>
+
+        <main className={cn("mx-auto w-full flex-1 p-4 md:p-8", lebar)}>
+          <Outlet context={outletContext} />
+        </main>
       </div>
 
+      {/* Dialog Konfirmasi Keluar */}
       <Dialog open={konfirmasi} onOpenChange={setKonfirmasi}>
         <DialogContent showCloseButton={false} className="sm:max-w-sm">
-          <DialogHeader className="items-center text-center"><div className="mb-1 flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary"><LogOut className="size-5" /></div><DialogTitle>Apakah Anda yakin ingin keluar?</DialogTitle><DialogDescription>Anda perlu masuk kembali untuk mengakses SIREMUN-P1.</DialogDescription></DialogHeader>
-          <DialogFooter className="sm:justify-center"><Button variant="outline" onClick={() => setKonfirmasi(false)}>Batal</Button><Button onClick={() => logout()}>Keluar</Button></DialogFooter>
+          <DialogHeader className="items-center text-center">
+            <div className="mb-1 flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <LogOut className="size-5" />
+            </div>
+            <DialogTitle>Apakah Anda yakin ingin keluar?</DialogTitle>
+            <DialogDescription>Anda perlu masuk kembali untuk mengakses SIREMUN-P1.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button variant="outline" onClick={() => setKonfirmasi(false)}>Batal</Button>
+            <Button onClick={() => logout()}>Keluar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

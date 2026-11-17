@@ -1,12 +1,13 @@
 import type { ReactNode } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Download, MessageSquare, Printer } from "lucide-react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Field, PageHeading, Panel } from "@/components/pegawai/shared"
-import { DAFTAR_SLIP, pegawai } from "@/data/dummy-pegawai"
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
+import { pegawaiService } from "@/services/pegawaiService"
 
 function Seksi({ no, judul, desk, children }: { no: string; judul: string; desk: string; children: ReactNode }) {
   return (
@@ -26,7 +27,32 @@ function Seksi({ no, judul, desk, children }: { no: string; judul: string; desk:
 export default function SlipDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const slip = DAFTAR_SLIP.find((s) => s.id === id)
+  const [slip, setSlip] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchSlip = async () => {
+      if (!id) return
+      try {
+        setLoading(true)
+        const result = await pegawaiService.getSlipDetail(id)
+        setSlip(result)
+      } catch (error) {
+        console.error('Failed to load slip detail:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchSlip()
+  }, [id])
+
+  if (loading) {
+    return (
+      <Panel>
+        <p className="text-sm">Memuat data slip...</p>
+      </Panel>
+    )
+  }
 
   if (!slip) {
     return (
@@ -39,9 +65,10 @@ export default function SlipDetailPage() {
     )
   }
 
+  const pegawai = slip.pegawai || {}
   const cetak = () => window.print()
   const unduh = () => toast.info("Unduh PDF belum tersambung ke backend (dummy).")
-  const ajukan = () => navigate(`/pegawai/pengaduan/baru?periode=${encodeURIComponent(slip.periode)}`)
+  const ajukan = () => navigate(`/pegawai/pengaduan/baru?periode=${encodeURIComponent(slip.Periode)}`)
 
   return (
     <>
@@ -50,7 +77,7 @@ export default function SlipDetailPage() {
       </Link>
       <PageHeading
         title="Detail Slip P1"
-        desc={`Rincian transparan perhitungan P1 periode ${slip.periode}.`}
+        desc={`Rincian transparan perhitungan P1 periode ${slip.Periode}.`}
         action={
           <div className="flex gap-2 print:hidden">
             <Button variant="outline" onClick={cetak}><Printer /> Cetak</Button>
@@ -62,26 +89,26 @@ export default function SlipDetailPage() {
       <div className="space-y-6">
         <Seksi no="01" judul="Identitas dan Periode" desk="Informasi pemilik slip dan periode pembayaran.">
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Nama" value={pegawai.nama} />
-            <Field label="NIP" value={pegawai.nip} />
-            <Field label="NPWP" value={pegawai.npwpSamar} />
-            <Field label="Pangkat/Golongan" value={pegawai.pangkat} />
-            <Field label="Nama jabatan" value={pegawai.jabatan} />
-            <Field label="Unit kerja" value={pegawai.unit} />
-            <Field label="Grade" value={pegawai.grade} />
-            <Field label="Status kepegawaian" value={pegawai.status} />
-            <Field label="Periode" value={slip.periode} />
-            <Field label="Nomor slip" value={slip.nomor} />
+            <Field label="Nama" value={pegawai.Nama || '-'} />
+            <Field label="NIP" value={pegawai.NIP || '-'} />
+            <Field label="NPWP" value={pegawai.NPWP || '-'} />
+            <Field label="Pangkat/Golongan" value={pegawai.Pangkat || '-'} />
+            <Field label="Nama jabatan" value={pegawai.NamaJabatan || '-'} />
+            <Field label="Unit kerja" value={pegawai.NamaUnit || '-'} />
+            <Field label="Grade" value={pegawai.KodeGrade || '-'} />
+            <Field label="Status kepegawaian" value={pegawai.StatusPegawai || '-'} />
+            <Field label="Periode" value={slip.Periode || '-'} />
+            <Field label="Nomor slip" value={slip.NomorSlip || '-'} />
           </div>
         </Seksi>
 
         <Seksi no="02" judul="Dasar Perhitungan" desk="Komponen pembentuk nilai Remunerasi P1.">
           <div className="grid overflow-hidden rounded-lg border sm:grid-cols-4">
             {[
-              ["Remunerasi per Grade Jabatan", rupiah(slip.remunerasiGrade)],
-              [`P1 ${slip.persenP1}%`, rupiah(slip.remunerasiGrade * slip.persenP1 / 100)],
-              ["Pengali Status", `${slip.pengali}%`],
-              ["Remunerasi P1", rupiah(slip.remunerasiP1)],
+              ["Remunerasi per Grade Jabatan", rupiah(slip.RemunerasiGrade || 0)],
+              [`P1 ${slip.PersenP1 || 40}%`, rupiah((slip.RemunerasiGrade || 0) * (slip.PersenP1 || 40) / 100)],
+              ["Pengali Status", `${slip.PengaliStatus || 100}%`],
+              ["Remunerasi P1", rupiah(slip.RemunerasiP1 || 0)],
             ].map(([l, v], i) => (
               <div key={l} className={cn("border-b p-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0", i === 3 && "bg-primary/10")}>
                 <p className="text-[11px] text-muted-foreground">{l}</p>
@@ -109,21 +136,21 @@ export default function SlipDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {slip.komponen.map((k) => (
-                  <tr key={k.nama} className="odd:bg-muted/40">
-                    <td className="px-3 py-3 font-semibold">{k.nama}</td>
-                    <td className="px-3 py-3">{k.hari} hari</td>
-                    <td className="px-3 py-3">{k.tarif}</td>
-                    <td className="px-3 py-3">{k.persen}</td>
+                {(slip.komponen || []).map((k: any) => (
+                  <tr key={k.Nama} className="odd:bg-muted/40">
+                    <td className="px-3 py-3 font-semibold">{k.Nama}</td>
+                    <td className="px-3 py-3">{k.JumlahHari} hari</td>
+                    <td className="px-3 py-3">{k.TarifPerHari}</td>
+                    <td className="px-3 py-3">{k.PersenPengurangan}%</td>
                   </tr>
                 ))}
                 <tr className="bg-primary/5 font-semibold">
                   <td className="px-3 py-3" colSpan={3}>Total Persentase Pengurangan</td>
-                  <td className="px-3 py-3">{slip.totalPersen}</td>
+                  <td className="px-3 py-3">{slip.TotalPersenPengurangan || 0}%</td>
                 </tr>
                 <tr className="bg-primary/5 font-semibold">
                   <td className="px-3 py-3" colSpan={3}>Pengurangan Kehadiran</td>
-                  <td className="px-3 py-3">{rupiah(slip.pengurangan)}</td>
+                  <td className="px-3 py-3">{rupiah(slip.PenguranganKehadiran || 0)}</td>
                 </tr>
               </tbody>
             </table>
@@ -134,10 +161,10 @@ export default function SlipDetailPage() {
           <h2 className="font-semibold">Ringkasan Pembayaran</h2>
           <dl className="mt-4 space-y-2 text-xs">
             {[
-              ["Jumlah Bruto", slip.bruto],
-              ["Pajak PPh 21", slip.pph21],
-              ["Pajak TER", slip.pphTer],
-              ["Tab. Pajak", slip.tabPajak],
+              ["Jumlah Bruto", slip.JumlahBruto || 0],
+              ["Pajak PPh 21", slip.PajakPPh21 || 0],
+              ["Pajak TER", slip.PajakTER || 0],
+              ["Tab. Pajak", slip.TabPajak || 0],
             ].map(([l, v]) => (
               <div key={l} className="flex justify-between">
                 <dt className="text-muted-foreground">{l}</dt>
@@ -147,9 +174,11 @@ export default function SlipDetailPage() {
           </dl>
           <div className="mt-4 flex items-center justify-between rounded-lg bg-primary/10 p-4">
             <span className="text-[11px] font-semibold">JUMLAH NETTO YANG DITERIMA</span>
-            <span className="text-xl font-bold text-primary">{rupiah(slip.netto)}</span>
+            <span className="text-xl font-bold text-primary">{rupiah(slip.JumlahNetto || 0)}</span>
           </div>
-          <p className="mt-2 text-right text-[10px] text-muted-foreground">Rekening tujuan {pegawai.rekening}</p>
+          <p className="mt-2 text-right text-[10px] text-muted-foreground">
+            Rekening tujuan {pegawai.NamaBank ? `${pegawai.NamaBank} ${pegawai.NoRekening}` : pegawai.NoRekening || '-'}
+          </p>
         </Panel>
 
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">

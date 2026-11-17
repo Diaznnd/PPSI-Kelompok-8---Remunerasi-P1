@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Users,
   CheckCircle2,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -30,68 +31,203 @@ import {
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 type SlipPegawaiStatus = "terbit" | "belum_terbit" | "gagal"
 
-type SlipPegawaiRow = PegawaiHitungP1Item & {
+type SlipPegawaiRow = {
+  nip: string
+  nama: string
+  grade: number
+  jabatan?: string
+  statusKepegawaian?: string
+  pengaliStatus?: number
+  p1Gross: number
+  pajak: number
+  p1Netto: number
+  netto: number
+  p1SetelahPotongan?: number
   statusSlip: SlipPegawaiStatus
   rekeningMasked: string
   nilaiJabatan: number
   remunerasiPerJabatan: number
   pajakTer: number
   tabPajak: number
+  tarifPajakPersen?: number
+  rincianKehadiran?: any[]
+  rincianHukdis?: string
+  potonganHukdis?: number
 }
 
 export default function SlipDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const decodedId = decodeURIComponent(id ?? "")
-  const item = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
-
-  const isNettoDitetapkan =
-    item.status === "netto_ditetapkan" || item.status === "amprah_tersedia"
-
-  const initialRows: SlipPegawaiRow[] = useMemo(() => {
-    return pegawaiHitungSample.map((p, idx) => {
-      let statusSlip: SlipPegawaiStatus = "belum_terbit"
-      if (isNettoDitetapkan) {
-        statusSlip = item.unit.includes("Penelitian") && idx === 2 ? "gagal" : "terbit"
-      }
-      const nilaiJabatan = Math.round(p.p1Gross / (3000 * 0.4))
-      return {
-        ...p,
-        statusSlip,
-        rekeningMasked: `Bank Nagari •••• ${4821 + idx}`,
-        nilaiJabatan,
-        remunerasiPerJabatan: Math.round(p.p1Gross / 0.4),
-        pajakTer: p.pajak,
-        tabPajak: 0,
-      }
-    })
-  }, [isNettoDitetapkan, item.unit])
-
-  const [rows, setRows] = useState<SlipPegawaiRow[]>(initialRows)
+  
+  const [loading, setLoading] = useState(true)
+  const [pengajuan, setPengajuan] = useState<any>(null)
+  const [rows, setRows] = useState<SlipPegawaiRow[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [selectedSlip, setSelectedSlip] = useState<SlipPegawaiRow | null>(null)
   const [isSlipModalOpen, setIsSlipModalOpen] = useState(false)
   const [isPrintOpen, setIsPrintOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
+  useEffect(() => {
+    if (decodedId) {
+      fetchSlipDetail()
+    }
+  }, [decodedId])
+
+  const fetchSlipDetail = async () => {
+    try {
+      setLoading(true)
+      // Extract periode from ID or use current month
+      const currentPeriode = new Date().toISOString().slice(0, 7)
+      const res = await uptRemunerasiService.getPenerbitanSlipList(currentPeriode)
+      
+      const found = res.data.find((p: any) => p.id === decodedId || p.pengajuan_id === decodedId)
+      
+      if (found) {
+        setPengajuan(found)
+        
+        // Map pegawai list to rows
+        const mappedRows: SlipPegawaiRow[] = (found.pegawai_list || []).map((p: any) => ({
+          nip: p.NIP || p.nip,
+          nama: p.nama,
+          grade: p.grade || 1,
+          jabatan: p.jabatan || '',
+          statusKepegawaian: p.status_kepegawaian || 'Aktif',
+          pengaliStatus: p.pengali_status || 100,
+          p1Gross: p.p1_bruto || 0,
+          pajak: p.pajak || 0,
+          p1Netto: p.p1_netto || 0,
+          netto: p.p1_netto || 0,
+          p1SetelahPotongan: p.p1_setelah_potongan || p.p1_bruto || 0,
+          statusSlip: p.slip_terbit ? "terbit" : p.slip_gagal ? "gagal" : "belum_terbit",
+          rekeningMasked: p.rekening_masked || "Bank Nagari •••• ****",
+          nilaiJabatan: p.nilai_jabatan || 0,
+          remunerasiPerJabatan: p.remun_per_jabatan || 0,
+          pajakTer: p.pajak_ter || p.pajak || 0,
+          tabPajak: p.tab_pajak || 0,
+          tarifPajakPersen: p.tarif_pajak_persen || 5,
+          rincianKehadiran: p.rincian_kehadiran || [],
+          rincianHukdis: p.rincian_hukdis || 'Tidak ada hukuman disiplin',
+          potonganHukdis: p.potongan_hukdis || 0,
+        }))
+        
+        setRows(mappedRows)
+      } else {
+        // Fallback to dummy
+        const fallbackItem = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
+        setPengajuan(fallbackItem)
+        const dummyRows: SlipPegawaiRow[] = pegawaiHitungSample.map((p, idx) => ({
+          nip: p.nip,
+          nama: p.nama,
+          grade: p.grade,
+          jabatan: p.jabatan,
+          statusKepegawaian: p.statusKepegawaian,
+          pengaliStatus: p.pengaliStatus,
+          p1Gross: p.p1Gross,
+          pajak: p.pajak,
+          p1Netto: p.netto,
+          netto: p.netto,
+          p1SetelahPotongan: p.p1SetelahPotongan,
+          statusSlip: "belum_terbit" as SlipPegawaiStatus,
+          rekeningMasked: `Bank Nagari •••• ${4821 + idx}`,
+          nilaiJabatan: Math.round(p.p1Gross / (3000 * 0.4)),
+          remunerasiPerJabatan: Math.round(p.p1Gross / 0.4),
+          pajakTer: p.pajak,
+          tabPajak: 0,
+          tarifPajakPersen: p.tarifPajakPersen,
+          rincianKehadiran: p.rincianKehadiran,
+          rincianHukdis: p.rincianHukdis,
+          potonganHukdis: p.potonganHukdis,
+        }))
+        setRows(dummyRows)
+      }
+    } catch (error) {
+      console.error("Error fetching slip detail:", error)
+      toast.error("Gagal memuat detail slip. Menggunakan data dummy.")
+      // Fallback
+      const fallbackItem = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
+      setPengajuan(fallbackItem)
+      const dummyRows: SlipPegawaiRow[] = pegawaiHitungSample.map((p, idx) => ({
+        nip: p.nip,
+        nama: p.nama,
+        grade: p.grade,
+        jabatan: p.jabatan,
+        statusKepegawaian: p.statusKepegawaian,
+        pengaliStatus: p.pengaliStatus,
+        p1Gross: p.p1Gross,
+        pajak: p.pajak,
+        p1Netto: p.netto,
+        netto: p.netto,
+        p1SetelahPotongan: p.p1SetelahPotongan,
+        statusSlip: "belum_terbit" as SlipPegawaiStatus,
+        rekeningMasked: `Bank Nagari •••• ${4821 + idx}`,
+        nilaiJabatan: Math.round(p.p1Gross / (3000 * 0.4)),
+        remunerasiPerJabatan: Math.round(p.p1Gross / 0.4),
+        pajakTer: p.pajak,
+        tabPajak: 0,
+        tarifPajakPersen: p.tarifPajakPersen,
+        rincianKehadiran: p.rincianKehadiran,
+        rincianHukdis: p.rincianHukdis,
+        potonganHukdis: p.potonganHukdis,
+      }))
+      setRows(dummyRows)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isNettoDitetapkan = pengajuan?.status === "netto_ditetapkan" || pengajuan?.status === "amprah_tersedia"
   const gagalCount = rows.filter((r) => r.statusSlip === "gagal").length
   const terbitCount = rows.filter((r) => r.statusSlip === "terbit").length
 
-  const handleTerbitkanAtauUlang = () => {
+  const handleTerbitkanAtauUlang = async () => {
     if (!isNettoDitetapkan) {
       const msg = "Netto belum ditetapkan - slip tidak dapat terbit"
       setErrorMsg(msg)
       toast.error(msg)
       return
     }
+    
     setErrorMsg(null)
-    setRows((prev) => prev.map((r) => ({ ...r, statusSlip: "terbit" })))
-    toast.success(
-      gagalCount > 0
-        ? `${gagalCount} slip yang gagal berhasil diterbitkan ulang.`
-        : "Seluruh slip P1 unit berhasil diterbitkan."
+    setSubmitting(true)
+    
+    try {
+      await uptRemunerasiService.terbitkanSlip(decodedId)
+      
+      toast.success(
+        gagalCount > 0
+          ? `${gagalCount} slip yang gagal berhasil diterbitkan ulang.`
+          : "Seluruh slip P1 unit berhasil diterbitkan."
+      )
+      
+      // Refresh data
+      await fetchSlipDetail()
+    } catch (error: any) {
+      console.error("Error terbitkan slip:", error)
+      toast.error(error.response?.data?.message || "Gagal menerbitkan slip")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!pengajuan) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <p className="text-muted-foreground">Pengajuan tidak ditemukan</p>
+      </div>
     )
   }
 
@@ -155,7 +291,7 @@ export default function SlipDetailPage() {
     <div className="space-y-4 text-xs">
       <div className="border-b pb-3 text-center">
         <p className="font-bold text-sm uppercase tracking-wide">UNIVERSITAS ANDALAS</p>
-        <p className="text-muted-foreground">SLIP PEMBAYARAN REMUNERASI P1 — PERIODE {item.periode.toUpperCase()}</p>
+        <p className="text-muted-foreground">SLIP PEMBAYARAN REMUNERASI P1 — PERIODE {pengajuan.periode.toUpperCase()}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/20 p-3">
@@ -169,11 +305,11 @@ export default function SlipDetailPage() {
         </div>
         <div>
           <p className="text-muted-foreground">Unit Kerja</p>
-          <p className="font-medium">{item.unit}</p>
+          <p className="font-medium">{pengajuan.unit}</p>
         </div>
         <div>
           <p className="text-muted-foreground">Jabatan / Grade</p>
-          <p className="font-medium">{selectedSlip.jabatan} (Grade {selectedSlip.grade})</p>
+          <p className="font-medium">{selectedSlip.jabatan || 'N/A'} (Grade {selectedSlip.grade})</p>
         </div>
       </div>
 
@@ -188,19 +324,19 @@ export default function SlipDetailPage() {
           <span className="font-medium">{rupiah(selectedSlip.p1Gross)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Pengali Status ({selectedSlip.statusKepegawaian})</span>
-          <span className="font-medium">{selectedSlip.pengaliStatus}%</span>
+          <span className="text-muted-foreground">Pengali Status ({selectedSlip.statusKepegawaian || 'N/A'})</span>
+          <span className="font-medium">{selectedSlip.pengaliStatus || 100}%</span>
         </div>
         <div className="flex justify-between font-semibold border-t pt-1">
           <span>Remunerasi P1</span>
-          <span>{rupiah(Math.round((selectedSlip.p1Gross * selectedSlip.pengaliStatus) / 100))}</span>
+          <span>{rupiah(Math.round((selectedSlip.p1Gross * (selectedSlip.pengaliStatus || 100)) / 100))}</span>
         </div>
       </div>
 
       <div className="rounded-lg border p-3 space-y-1.5">
         <p className="font-semibold text-foreground border-b pb-1">Pengurangan Kehadiran & Hukuman Disiplin</p>
-        {selectedSlip.rincianKehadiran.length > 0 ? (
-          selectedSlip.rincianKehadiran.map((rk, i) => (
+        {selectedSlip.rincianKehadiran && selectedSlip.rincianKehadiran.length > 0 ? (
+          selectedSlip.rincianKehadiran.map((rk: any, i: number) => (
             <div key={i} className="flex justify-between text-rose-700">
               <span>• {rk.jenis} ({rk.jumlah}, {rk.persenPotongan}%)</span>
               <span>- {rupiah(rk.nominal)}</span>
@@ -210,8 +346,8 @@ export default function SlipDetailPage() {
           <p className="text-muted-foreground italic">• Tidak ada pengurangan kehadiran</p>
         )}
         <div className="flex justify-between text-rose-700">
-          <span>• {selectedSlip.rincianHukdis}</span>
-          <span>- {rupiah(selectedSlip.potonganHukdis)}</span>
+          <span>• {selectedSlip.rincianHukdis || 'Tidak ada hukuman disiplin'}</span>
+          <span>- {rupiah(selectedSlip.potonganHukdis || 0)}</span>
         </div>
       </div>
 
@@ -219,14 +355,14 @@ export default function SlipDetailPage() {
         <p className="font-semibold text-emerald-950 border-b border-emerald-200 pb-1">Ringkasan Pembayaran</p>
         <div className="flex justify-between">
           <span>Jumlah Bruto (Setelah Potongan)</span>
-          <span className="font-medium">{rupiah(selectedSlip.p1SetelahPotongan)}</span>
+          <span className="font-medium">{rupiah(selectedSlip.p1SetelahPotongan || selectedSlip.p1Gross)}</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
           <span>Pajak (PPh 21)</span>
           <span>{rupiah(selectedSlip.pajak)}</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
-          <span>Pajak TER ({selectedSlip.tarifPajakPersen}%)</span>
+          <span>Pajak TER ({selectedSlip.tarifPajakPersen || 5}%)</span>
           <span>{rupiah(selectedSlip.pajakTer)}</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
@@ -235,7 +371,7 @@ export default function SlipDetailPage() {
         </div>
         <div className="flex justify-between text-sm font-bold text-emerald-800 border-t border-emerald-200 pt-1.5">
           <span>Jumlah Netto Diterima</span>
-          <span>{rupiah(selectedSlip.netto)}</span>
+          <span>{rupiah(selectedSlip.p1Netto)}</span>
         </div>
         <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
           <span>Rekening Tujuan</span>
@@ -261,18 +397,23 @@ export default function SlipDetailPage() {
       <PageHeader
         title={
           <div className="flex flex-wrap items-center gap-3">
-            <span>Slip P1 {item.unit}</span>
-            <StatusBadge status={item.status} />
+            <span>Slip P1 {pengajuan.unit}</span>
+            <StatusBadge status={pengajuan.status} />
           </div>
         }
-        subtitle={`${item.id} • Periode ${item.periode} • Terbit ${terbitCount} dari ${rows.length} sampel pegawai`}
+        subtitle={`${pengajuan.id} • Periode ${pengajuan.periode} • Terbit ${terbitCount} dari ${rows.length} sampel pegawai`}
         actions={
           <Button
             size="sm"
-            className={`gap-2 ${!isNettoDitetapkan ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`gap-2 ${!isNettoDitetapkan || submitting ? "opacity-50 cursor-not-allowed" : ""}`}
             onClick={handleTerbitkanAtauUlang}
+            disabled={!isNettoDitetapkan || submitting}
           >
-            {gagalCount > 0 ? (
+            {submitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Menerbitkan...
+              </>
+            ) : gagalCount > 0 ? (
               <>
                 <RefreshCw className="size-4" /> Ulangi yang Gagal ({gagalCount})
               </>
@@ -304,11 +445,11 @@ export default function SlipDetailPage() {
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <Users className="size-3.5" /> Total Pegawai Unit
           </p>
-          <p className="mt-1 text-lg font-bold">{item.pegawai} orang</p>
+          <p className="mt-1 text-lg font-bold">{pengajuan.pegawai} orang</p>
         </div>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total P1 Netto Unit</p>
-          <p className="mt-1 text-lg font-bold text-primary">{rupiah(item.netto)}</p>
+          <p className="mt-1 text-lg font-bold text-primary">{rupiah(pengajuan.netto)}</p>
         </div>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">

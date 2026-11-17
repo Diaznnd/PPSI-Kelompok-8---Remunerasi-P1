@@ -13,8 +13,10 @@ export const menuByRole: Record<Peran, { label: string; to: string }[]> = {
   ],
   bendahara: [
     { label: "Dashboard", to: "/bendahara/dashboard" },
-    { label: "Impor Presensi", to: "/bendahara/presensi" },
+    { label: "Perhitungan P1", to: "/bendahara/perhitungan" },
+    { label: "Status Pengajuan", to: "/bendahara/status" },
     { label: "Amprah", to: "/bendahara/amprah" },
+    { label: "Rekapitulasi P1", to: "/bendahara/rekapitulasi" },
   ],
   verifikator: [
     { label: "Dashboard", to: "/verifikator/dashboard" },

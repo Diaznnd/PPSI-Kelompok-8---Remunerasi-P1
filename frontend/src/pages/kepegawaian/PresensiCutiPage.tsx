@@ -9,11 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AreaTeks, Bidang, Dropzone, TabBar } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { usePeriodeKepeg } from "@/layouts/KepegawaianShell"
-import { DAFTAR_PERIODE } from "@/data/dummy-pegawai"
 import { REKAP_CUTI, hitungPresensi, statusHukuman, type BarisPresensi } from "@/data/dummy-kepegawaian"
 import { persenStr } from "@/data/dummy-bendahara"
 import { imporPresensi, koreksiPresensi, useKepeg } from "@/data/store-kepegawaian"
 import { cn } from "@/lib/utils"
+
+const DAFTAR_PERIODE = [
+  "Oktober 2026",
+  "September 2026",
+  "Agustus 2026",
+  "Juli 2026",
+  "Juni 2026",
+  "Mei 2026"
+]
 
 const warnaStatus: Record<string, string> = {
   Valid: "border-emerald-200 bg-emerald-100 text-emerald-800",

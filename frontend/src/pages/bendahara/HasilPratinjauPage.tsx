@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { AlertTriangle, ArrowLeft, ArrowRight, FileSpreadsheet, Search, ShieldAlert, XCircle } from "lucide-react"
+import { AlertTriangle, ArrowLeft, ArrowRight, FileSpreadsheet, Search, ShieldAlert, XCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { PEGAWAI_AWAL, PERSEN_P1, PIR, RINGKASAN, hitung, persenStr, type PegawaiP1, type Presensi } from "@/data/dummy-bendahara"
+import { PERSEN_P1, PIR, hitung, persenStr, type PegawaiP1, type Presensi } from "@/data/dummy-bendahara"
+import { bendaharaService } from "@/services/bendaharaService"
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +23,8 @@ const CUTI: [keyof Presensi, string][] = [
 
 export default function HasilPratinjauPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<PegawaiP1[]>(PEGAWAI_AWAL)
+  const [data, setData] = useState<PegawaiP1[]>([])
+  const [loading, setLoading] = useState(true)
   const [q, setQ] = useState("")
   const [tampil, setTampil] = useState("semua")
   const [urut, setUrut] = useState("az")
@@ -30,6 +32,38 @@ export default function HasilPratinjauPage() {
   const [rincian, setRincian] = useState<string | null>(null)
   const [koreksi, setKoreksi] = useState<string | null>(null)
   const [draft, setDraft] = useState<Presensi | null>(null)
+  const [ringkasanApi, setRingkasanApi] = useState<any>({
+    pegawai: 0,
+    remP1: 0,
+    pengurangan: 0,
+    bruto: 0,
+    nolCount: 0,
+    disiplinCount: 0,
+    fisik50: 0,
+  })
+
+  // Fetch data from API
+  useEffect(() => {
+    const fetchPratinjau = async () => {
+      try {
+        setLoading(true)
+        const res = await bendaharaService.getPratinjau("2026-10")
+        
+        if (res?.data && res.data.length > 0) {
+          setData(res.data)
+        }
+        if (res?.ringkasan) {
+          setRingkasanApi(res.ringkasan)
+        }
+      } catch (error) {
+        console.error("Error fetching pratinjau:", error)
+        toast.error("Gagal memuat data pratinjau")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPratinjau()
+  }, [])
 
   const rows = useMemo(() => {
     const r = data.map((p) => ({ p, h: hitung(p) }))
@@ -47,24 +81,47 @@ export default function HasilPratinjauPage() {
     setKoreksi(p.nip)
     setDraft(structuredClone(p.presensi))
   }
-  function simpanKoreksi() {
-    if (!draft) return
-    setData((d) => d.map((p) => (p.nip === koreksi ? { ...p, presensi: draft } : p)))
-    setKoreksi(null)
-    toast.success("Koreksi disimpan. Perhitungan pegawai diperbarui.")
+  async function simpanKoreksi() {
+    if (!draft || !koreksi) return
+    try {
+      setLoading(true)
+      await bendaharaService.koreksiPresensi(koreksi, { periode: "2026-10", ...draft })
+      toast.success("Koreksi disimpan ke basis data. Perhitungan diperbarui.")
+      
+      // Update local state with new presensi data
+      setData((d) => d.map((p) => (p.nip === koreksi ? { ...p, presensi: draft } : p)))
+      setKoreksi(null)
+    } catch (error) {
+      console.error("Error saving koreksi:", error)
+      toast.error("Gagal menyimpan koreksi")
+    } finally {
+      setLoading(false)
+    }
   }
   const ubahCuti = (k: keyof Presensi, v: string) => setDraft((d) => (d ? { ...d, [k]: Math.max(0, Number(v) || 0) } : d))
   const ubahArr = (k: "tl" | "psw", i: number, v: string) =>
     setDraft((d) => (d ? { ...d, [k]: d[k].map((x, j) => (j === i ? Math.max(0, Number(v) || 0) : x)) } : d))
 
   const kartu = [
-    ["Total Pegawai", String(RINGKASAN.pegawai)], ["Total Remunerasi P1", rupiah(RINGKASAN.remP1)],
-    ["Total Pengurangan Kehadiran", rupiah(RINGKASAN.pengurangan)], ["Jumlah Bruto", rupiah(RINGKASAN.bruto)],
-    ["Remunerasi P1 Rp 0", String(RINGKASAN.nolCount)], ["Baris Bermasalah", String(RINGKASAN.nolCount + RINGKASAN.disiplinCount)],
+    ["Total Pegawai", String(ringkasanApi.pegawai)],
+    ["Total Remunerasi P1", rupiah(ringkasanApi.remP1)],
+    ["Total Pengurangan Kehadiran", rupiah(ringkasanApi.pengurangan)],
+    ["Jumlah Bruto", rupiah(ringkasanApi.bruto)],
+    ["Remunerasi P1 Rp 0", String(ringkasanApi.nolCount)],
+    ["Baris Bermasalah", String(ringkasanApi.nolCount + ringkasanApi.disiplinCount)],
   ]
 
   return (
     <>
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+          <span className="ml-3 text-sm text-muted-foreground">Memuat data pratinjau...</span>
+        </div>
+      )}
+
+      {!loading && (
+        <>
       <Link to="/bendahara/perhitungan" className="mb-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"><ArrowLeft className="size-3" /> Kembali</Link>
       <PageHeading title="Hasil Pratinjau Perhitungan" desc="Tinjau hasil sebelum mengajukan ke Verifikator." action={<Badge variant="outline">Draft</Badge>} />
 
@@ -79,7 +136,7 @@ export default function HasilPratinjauPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {[[AlertTriangle, RINGKASAN.fisik50, "Ketidakhadiran fisik di atas 50% hari kerja"], [ShieldAlert, RINGKASAN.disiplinCount, "Hukuman disiplin aktif"], [XCircle, 0, "Tidak memenuhi syarat bayar"]].map(([Ic, n, l]) => {
+          {[[AlertTriangle, ringkasanApi.fisik50, "Ketidakhadiran fisik di atas 50% hari kerja"], [ShieldAlert, ringkasanApi.disiplinCount, "Hukuman disiplin aktif"], [XCircle, 0, "Tidak memenuhi syarat bayar"]].map(([Ic, n, l]) => {
             const Icon = Ic as typeof AlertTriangle
             return (
               <Panel key={String(l)} className="flex items-center gap-3 p-4">
@@ -156,10 +213,10 @@ export default function HasilPratinjauPage() {
                     </tr>
                   ))}
                   <tr className="border-t bg-primary/5 font-bold">
-                    <td className="px-3 py-3" colSpan={8}>TOTAL ({RINGKASAN.pegawai} pegawai)</td>
-                    <td className="px-3 py-3">{rupiah(RINGKASAN.remP1)}</td><td />
-                    <td className="px-3 py-3">{rupiah(RINGKASAN.pengurangan)}</td><td />
-                    <td className="px-3 py-3">{rupiah(RINGKASAN.bruto)}</td><td />
+                    <td className="px-3 py-3" colSpan={8}>TOTAL ({ringkasanApi.pegawai} pegawai)</td>
+                    <td className="px-3 py-3">{rupiah(ringkasanApi.remP1)}</td><td />
+                    <td className="px-3 py-3">{rupiah(ringkasanApi.pengurangan)}</td><td />
+                    <td className="px-3 py-3">{rupiah(ringkasanApi.bruto)}</td><td />
                   </tr>
                 </tbody>
               </table>
@@ -184,7 +241,7 @@ export default function HasilPratinjauPage() {
               </table>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground">Tabel menampilkan 7 pegawai contoh dari {RINGKASAN.pegawai} pegawai. Total di atas dihitung dari seluruh pegawai.</p>
+          <p className="text-[11px] text-muted-foreground">Tabel menampilkan 7 pegawai contoh dari {ringkasanApi.pegawai} pegawai. Total di atas dihitung dari seluruh pegawai.</p>
         </Panel>
       </div>
 
@@ -262,6 +319,8 @@ export default function HasilPratinjauPage() {
           )}
         </SheetContent>
       </Sheet>
+        </>
+      )}
     </>
   )
 }

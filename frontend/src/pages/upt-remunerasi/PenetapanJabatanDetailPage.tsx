@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useParams, Link } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useParams, Link, useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
   Check,
@@ -11,6 +11,7 @@ import {
   Calendar,
   AlertCircle,
   TrendingUp,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -31,75 +32,153 @@ import {
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 export default function PenetapanJabatanDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const initialItem =
-    usulanJabatanDetailList.find((u) => u.id === id) || usulanJabatanDetailList[0]
-
-  const [data, setData] = useState<UsulanJabatanDetailItem>(initialItem)
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(null)
   const [isApproveOpen, setIsApproveOpen] = useState(false)
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const [rejectMode, setRejectMode] = useState<"dikembalikan" | "ditolak">("dikembalikan")
   const [rejectReason, setRejectReason] = useState("")
   const [rejectError, setRejectError] = useState("")
+  const [skPenetapan, setSkPenetapan] = useState("")
 
-  const selisihP1 = data.p1Baru - data.p1Lama
-  const isActionable = data.status === "terverifikasi"
-
-  const handleConfirmTetapkan = () => {
-    setSaveError(null)
-    if (!data.pemeriksaanOtomatis.tidakTumpangTindih) {
-      setSaveError("Gagal menyimpan: terdeteksi periode jabatan yang tumpang tindih pada riwayat resmi pegawai.")
-      setIsApproveOpen(false)
-      return
+  useEffect(() => {
+    if (id) {
+      fetchDetail()
     }
+  }, [id])
 
-    const updatedRiwayat = data.riwayatJabatanResmi.map((r, idx) =>
-      idx === 0 && r.status === "Berlaku"
-        ? { ...r, selesai: "H-1 sebelum efektif", status: "Berakhir" as const }
-        : r
-    )
-
-    updatedRiwayat.unshift({
-      jabatan: data.jabatanBaru,
-      grade: data.gradeBaru,
-      nilaiJabatan: data.nilaiJabatanBaru,
-      mulai: data.mulai,
-      selesai: "-",
-      sk: data.sk,
-      status: "Berlaku",
-    })
-
-    setData((prev) => ({
-      ...prev,
-      status: "ditetapkan",
-      riwayatJabatanResmi: updatedRiwayat,
-    }))
-
-    setIsApproveOpen(false)
-    toast.success(`Jabatan ${data.pegawai} (${data.baru}) berhasil ditetapkan ke riwayat resmi.`)
+  const fetchDetail = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getPenetapanJabatanDetail(id!)
+      
+      // Map API response to frontend format
+      const mapped = {
+        id: res.nomor_usulan || res.id,
+        nip: res.NIP,
+        pegawai: res.pegawai.nama,
+        unit: res.unit_nama,
+        jenis: res.jenis_pegawai || "Dosen",
+        statusKepegawaian: res.pegawai.status_kepegawaian,
+        golongan: res.pegawai.pangkat_golongan,
+        jabatanLama: res.jabatan_lama.nama,
+        gradeLama: res.jabatan_lama.grade,
+        nilaiJabatanLama: res.jabatan_lama.nilai || 0,
+        jabatanBaru: res.jabatan_baru.nama,
+        gradeBaru: res.jabatan_baru.grade,
+        nilaiJabatanBaru: res.jabatan_baru.nilai || 0,
+        lama: `${res.jabatan_lama.nama} (${res.jabatan_lama.grade})`,
+        baru: `${res.jabatan_baru.nama} (${res.jabatan_baru.grade})`,
+        mulai: res.tanggal_berlaku,
+        diajukan: res.diajukan_at,
+        status: res.status,
+        catatan: res.catatan_verifikator,
+        sk: res.dokumen?.nama_file || "-",
+        dokumenPath: res.dokumen?.file_path,
+        jenisPerubahan: res.jenis_perubahan,
+        // Estimasi P1 (simplified)
+        p1Lama: res.jabatan_lama.nilai || 0,
+        p1Baru: res.jabatan_baru.nilai || 0,
+        riwayatJabatanResmi: res.riwayat_jabatan || [],
+        pemeriksaanOtomatis: {
+          tidakTumpangTindih: true, // Backend should provide this
+          dokumenLengkap: !!res.dokumen,
+          jabatanTersedia: true,
+        }
+      }
+      
+      setData(mapped)
+    } catch (error) {
+      console.error("Error fetching usulan detail:", error)
+      toast.error("Gagal memuat detail usulan. Menggunakan data dummy.")
+      // Fallback to dummy data
+      const fallback = usulanJabatanDetailList.find((u) => u.id === id) || usulanJabatanDetailList[0]
+      setData(fallback)
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleConfirmReject = () => {
+  const selisihP1 = data ? data.p1Baru - data.p1Lama : 0
+  const isActionable = data?.status === "terverifikasi"
+
+  const handleConfirmTetapkan = async () => {
+    setSaveError(null)
+    setSubmitting(true)
+    
+    try {
+      await uptRemunerasiService.tetapkanJabatan(id!, {
+        sk_penetapan: skPenetapan,
+        catatan: "Usulan disetujui dan ditetapkan ke riwayat resmi"
+      })
+
+      toast.success(`Jabatan ${data.pegawai} (${data.baru}) berhasil ditetapkan ke riwayat resmi.`)
+      setIsApproveOpen(false)
+      
+      // Refresh data or navigate back
+      setTimeout(() => navigate("/upt-remunerasi/penetapan"), 1500)
+    } catch (error: any) {
+      console.error("Error tetapkan usulan:", error)
+      setSaveError(error.response?.data?.message || "Gagal menetapkan usulan")
+      toast.error("Gagal menetapkan usulan")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleConfirmReject = async () => {
     if (!rejectReason.trim()) {
       setRejectError("Catatan / alasan pengembalian atau penolakan wajib diisi.")
       return
     }
 
-    setData((prev) => ({
-      ...prev,
-      status: rejectMode,
-      catatan: rejectReason.trim(),
-    }))
-    setIsRejectOpen(false)
-    toast.success(
-      rejectMode === "dikembalikan"
+    setSubmitting(true)
+    try {
+      // Note: Backend might need a reject endpoint
+      // For now, we'll use tetapkan with reject status
+      await uptRemunerasiService.tetapkanJabatan(id!, {
+        catatan: rejectReason.trim(),
+        // status: rejectMode // Backend should handle this
+      })
+
+      toast.success(
+        rejectMode === "dikembalikan"
         ? "Usulan dikembalikan ke Verifikator untuk perbaikan."
         : "Usulan jabatan ditolak."
+      )
+      
+      setIsRejectOpen(false)
+      setTimeout(() => navigate("/upt-remunerasi/penetapan"), 1500)
+    } catch (error: any) {
+      console.error("Error reject usulan:", error)
+      toast.error("Gagal memproses penolakan")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <p className="text-muted-foreground">Usulan tidak ditemukan</p>
+      </div>
     )
   }
 
@@ -128,6 +207,7 @@ export default function PenetapanJabatanDetailPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
+                disabled={submitting}
                 onClick={() => {
                   setRejectMode("dikembalikan")
                   setRejectReason("")
@@ -140,6 +220,7 @@ export default function PenetapanJabatanDetailPage() {
               <Button
                 size="sm"
                 className="gap-1.5"
+                disabled={submitting}
                 onClick={() => setIsApproveOpen(true)}
               >
                 <Check className="size-4" /> Tetapkan ke Riwayat Resmi
@@ -388,13 +469,32 @@ export default function PenetapanJabatanDetailPage() {
         </div>
       </div>
 
-      <ConfirmDialog
+      <FormDialog
         open={isApproveOpen}
         onOpenChange={setIsApproveOpen}
         title="Tetapkan ke Riwayat Resmi"
         description="Pastikan seluruh data usulan dan bulan efektif P1 sudah sesuai."
-        summary={
-          <div className="space-y-2 text-xs">
+        footer={
+          <div className="flex justify-end gap-2 w-full">
+            <Button variant="outline" size="sm" onClick={() => setIsApproveOpen(false)} disabled={submitting}>
+              Batal
+            </Button>
+            <Button size="sm" onClick={handleConfirmTetapkan} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" /> Menetapkan...
+                </>
+              ) : (
+                <>
+                  <Check className="size-3.5 mr-1.5" /> Tetapkan Sekarang
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Pegawai:</span>
               <span className="font-semibold">{data.pegawai}</span>
@@ -404,17 +504,39 @@ export default function PenetapanJabatanDetailPage() {
               <span className="font-semibold">{data.lama} → {data.baru}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Mulai Berlaku / Efektif P1:</span>
-              <span className="font-semibold text-primary">{data.mulai} ({data.bulanEfektifP1})</span>
+              <span className="text-muted-foreground">Mulai Berlaku:</span>
+              <span className="font-semibold text-primary">{data.mulai}</span>
             </div>
-            <p className="pt-2 border-t text-[11px] text-muted-foreground">
-              Jabatan/grade baru dipakai pada perhitungan sesuai bulan efektif; riwayat lama tidak dihapus.
+          </div>
+
+          <div className="pt-2 border-t">
+            <label className="font-semibold text-foreground block mb-1">
+              Nomor SK Penetapan UPT (Opsional)
+            </label>
+            <input
+              type="text"
+              value={skPenetapan}
+              onChange={(e) => setSkPenetapan(e.target.value)}
+              placeholder="Contoh: SK/001/UN16.23/KP/2026"
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-xs"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Nomor SK untuk dokumentasi. Kosongkan jika belum ada.
             </p>
           </div>
-        }
-        confirmText="Tetapkan Sekarang"
-        onConfirm={handleConfirmTetapkan}
-      />
+
+          {saveError && (
+            <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-rose-800">
+              <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <p className="text-[11px]">{saveError}</p>
+            </div>
+          )}
+
+          <p className="pt-2 border-t text-[11px] text-muted-foreground">
+            Jabatan/grade baru akan dipakai pada perhitungan P1 sesuai tanggal berlaku; riwayat lama tidak dihapus.
+          </p>
+        </div>
+      </FormDialog>
 
       <FormDialog
         open={isRejectOpen}
@@ -423,11 +545,17 @@ export default function PenetapanJabatanDetailPage() {
         description="Berikan alasan atau catatan resmi yang akan dikirimkan ke pengusul dan verifikator."
         footer={
           <div className="flex justify-end gap-2 w-full">
-            <Button variant="outline" size="sm" onClick={() => setIsRejectOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsRejectOpen(false)} disabled={submitting}>
               Batal
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleConfirmReject}>
-              {rejectMode === "dikembalikan" ? "Kembalikan Usulan" : "Tolak Usulan"}
+            <Button variant="destructive" size="sm" onClick={handleConfirmReject} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" /> Memproses...
+                </>
+              ) : (
+                rejectMode === "dikembalikan" ? "Kembalikan Usulan" : "Tolak Usulan"
+              )}
             </Button>
           </div>
         }

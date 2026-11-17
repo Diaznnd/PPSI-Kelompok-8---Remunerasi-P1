@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   UserPlus,
   UploadCloud,
@@ -14,8 +14,10 @@ import {
   Building2,
   Mail,
   Edit3,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/context/AuthContext"
 import {
   PageHeader,
   DataTable,
@@ -40,6 +42,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { PenugasanPeranSection } from "./PenugasanUnitPage"
 import { MatriksHakAksesSection } from "./HakAksesPage"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 const PERAN_LIST: PeranTambahan[] = [
   "Bendahara Unit",
@@ -63,14 +66,58 @@ const mockImportPreview = [
 ]
 
 export default function AkunHakAksesPage() {
+  const { akun } = useAuth() // Get logged-in user from AuthContext
   const [activeMainTab, setActiveMainTab] = useState<"semua" | "penugasan" | "matriks">("semua")
-  const [data, setData] = useState<AkunUserItem[]>(akunPenggunaInitial)
+  const [data, setData] = useState<AkunUserItem[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [peranFilter, setPeranFilter] = useState("semua")
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
 
-  const currentEmail = "dewi.anggraini@unand.ac.id"
+  // Use logged-in user's email instead of hardcoded
+  const currentEmail = akun?.email || ""
+
+  // Fetch akun list from API
+  useEffect(() => {
+    const fetchAkunList = async () => {
+      try {
+        setLoading(true)
+        const response = await uptRemunerasiService.getAkunList()
+        
+        if (response.success && response.data) {
+          // Map API response to AkunUserItem format
+          const mappedData: AkunUserItem[] = response.data.map((item: any) => ({
+            id: item.id.toString(),
+            pegawaiId: item.pegawai_id?.toString() || item.id.toString(),
+            nama: item.nama || item.username,
+            nip: item.NIP || "-",
+            email: item.username,
+            peranDasar: "Pegawai",
+            peranTambahan: item.peran as PeranTambahan | undefined,
+            unit: item.unit?.nama || undefined,
+            status: (item.aktif ? "aktif" : "nonaktif") as StatusEntitas,
+            terakhirMasuk: item.last_login || "Belum pernah",
+            pegawaiStatusAktif: item.pegawai?.aktif ? "aktif" : "nonaktif",
+            tanggalDibuat: item.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
+          }))
+          setData(mappedData)
+        } else {
+          // Fallback to dummy data if API fails
+          console.warn("API returned no data, using dummy fallback")
+          setData(akunPenggunaInitial)
+        }
+      } catch (error) {
+        console.error("Error fetching akun list:", error)
+        toast.error("Gagal memuat daftar akun. Menggunakan data dummy.")
+        setData(akunPenggunaInitial)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAkunList()
+  }, [])
 
   const [addStep, setAddStep] = useState(1)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -193,41 +240,56 @@ export default function AkunHakAksesPage() {
     }
   }
 
-  const handleSaveNewAccount = () => {
+  const handleSaveNewAccount = async () => {
     const peg = daftarPegawai.find((p) => p.id === newSelectedPegawaiId)
     if (!peg) return
 
-    const newAccount: AkunUserItem = {
-      id: `USR-${String(data.length + 1).padStart(3, "0")}`,
-      pegawaiId: peg.id,
-      nama: peg.nama,
-      nip: peg.nip,
-      email: newEmail.trim().toLowerCase(),
-      peranDasar: "Pegawai",
-      peranTambahan: newPeranTambahan === "none" ? undefined : (newPeranTambahan as PeranTambahan),
-      unit: newPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(newPeranTambahan as PeranTambahan) ? newUnit : undefined,
-      status: "aktif",
-      terakhirMasuk: "Belum pernah",
-      pegawaiStatusAktif: peg.statusAktif,
-      tanggalDibuat: new Date().toISOString().split("T")[0],
-    }
+    try {
+      setLoading(true)
+      
+      // Call API to create new account
+      const payload = {
+        username: newEmail.trim().toLowerCase(),
+        NIP: peg.nip,
+        password: undefined, // System will send activation email
+        peran: newPeranTambahan === "none" ? "Pegawai" : newPeranTambahan,
+        unit_id: newPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(newPeranTambahan as PeranTambahan) 
+          ? parseInt(newUnit) 
+          : null,
+      }
 
-    setData((prev) => [newAccount, ...prev])
-    auditUPT.unshift({
-      id: `AUD-${Date.now().toString().slice(-4)}`,
-      waktu: "15 Nov 2026, 22:15",
-      tanggal: "2026-11-15",
-      pelaku: "Dewi Anggraini, S.Kom., M.T.",
-      peran: "UPT Remunerasi",
-      unit: newAccount.unit || "UPT Remunerasi",
-      aksi: "Buat",
-      objek: newAccount.nama,
-      detail: `Membuat akun login ${newAccount.email} dengan peran ${newAccount.peranTambahan ?? "Pegawai"}`,
-      hasil: "Berhasil",
-    })
-    setIsAddOpen(false)
-    resetAddForm()
-    toast.success(`Akun ${newAccount.nama} berhasil dibuat. Undangan aktivasi telah dikirim ke ${newAccount.email}.`)
+      const response = await uptRemunerasiService.storeAkun(payload)
+
+      if (response.success) {
+        // Add to local state
+        const newAccount: AkunUserItem = {
+          id: response.data.id.toString(),
+          pegawaiId: peg.id,
+          nama: peg.nama,
+          nip: peg.nip,
+          email: newEmail.trim().toLowerCase(),
+          peranDasar: "Pegawai",
+          peranTambahan: newPeranTambahan === "none" ? undefined : (newPeranTambahan as PeranTambahan),
+          unit: newPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(newPeranTambahan as PeranTambahan) ? newUnit : undefined,
+          status: "aktif",
+          terakhirMasuk: "Belum pernah",
+          pegawaiStatusAktif: peg.statusAktif,
+          tanggalDibuat: new Date().toISOString().split("T")[0],
+        }
+
+        setData((prev) => [newAccount, ...prev])
+        setIsAddOpen(false)
+        resetAddForm()
+        toast.success(`Akun ${newAccount.nama} berhasil dibuat. Undangan aktivasi telah dikirim ke ${newAccount.email}.`)
+      } else {
+        toast.error(response.message || "Gagal membuat akun baru.")
+      }
+    } catch (error: any) {
+      console.error("Error creating account:", error)
+      toast.error(error.response?.data?.message || "Gagal membuat akun baru.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleOpenEdit = (akun: AkunUserItem) => {
@@ -238,7 +300,7 @@ export default function AkunHakAksesPage() {
     setIsEditOpen(true)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedAkun) return
 
     if (selectedAkun.email === currentEmail && editPeranTambahan !== "UPT Remunerasi") {
@@ -262,46 +324,71 @@ export default function AkunHakAksesPage() {
       }
     }
 
-    setData((prev) =>
-      prev.map((item) => {
-        if (item.id === selectedAkun.id) {
-          return {
-            ...item,
-            peranTambahan: editPeranTambahan === "none" ? undefined : (editPeranTambahan as PeranTambahan),
-            unit:
-              editPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(editPeranTambahan as PeranTambahan)
-                ? editUnit
-                : undefined,
-          }
-        }
-        return item
-      })
-    )
+    try {
+      setLoading(true)
+      
+      const payload = {
+        peran: editPeranTambahan === "none" ? "Pegawai" : editPeranTambahan,
+        unit_id: editPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(editPeranTambahan as PeranTambahan)
+          ? parseInt(editUnit)
+          : null,
+      }
 
-    auditUPT.unshift({
-      id: `AUD-${Date.now().toString().slice(-4)}`,
-      waktu: "15 Nov 2026, 22:15",
-      tanggal: "2026-11-15",
-      pelaku: "Dewi Anggraini, S.Kom., M.T.",
-      peran: "UPT Remunerasi",
-      unit: editUnit || selectedAkun.unit || "Universitas",
-      aksi: "Ubah Peran",
-      objek: selectedAkun.nama,
-      detail: `Mengubah peran tambahan akun ${selectedAkun.nama} menjadi ${editPeranTambahan === "none" ? "Pegawai (Tanpa Peran Tambahan)" : editPeranTambahan}`,
-      hasil: "Berhasil",
-    })
+      const response = await uptRemunerasiService.updateAkun(selectedAkun.id, payload)
 
-    setIsEditOpen(false)
-    toast.success(`Hak akses akun ${selectedAkun.nama} berhasil diperbarui. Menu pengguna akan berubah langsung.`)
+      if (response.success) {
+        // Update local state
+        setData((prev) =>
+          prev.map((item) => {
+            if (item.id === selectedAkun.id) {
+              return {
+                ...item,
+                peranTambahan: editPeranTambahan === "none" ? undefined : (editPeranTambahan as PeranTambahan),
+                unit:
+                  editPeranTambahan !== "none" && PERAN_TERIKAT_UNIT.includes(editPeranTambahan as PeranTambahan)
+                    ? editUnit
+                    : undefined,
+              }
+            }
+            return item
+          })
+        )
+
+        setIsEditOpen(false)
+        toast.success(`Hak akses akun ${selectedAkun.nama} berhasil diperbarui. Menu pengguna akan berubah langsung.`)
+      } else {
+        setEditError(response.message || "Gagal memperbarui akun.")
+      }
+    } catch (error: any) {
+      console.error("Error updating account:", error)
+      setEditError(error.response?.data?.message || "Gagal memperbarui akun.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleConfirmResetPassword = () => {
+  const handleConfirmResetPassword = async () => {
     if (!selectedAkun) return
-    setIsResetOpen(false)
-    toast.success(`Tautan pembaruan kata sandi telah dikirim ke ${selectedAkun.email}. Kata sandi lama tetap berlaku sampai diganti.`)
+    
+    try {
+      setLoading(true)
+      const response = await uptRemunerasiService.resetPasswordAkun(selectedAkun.id)
+      
+      if (response.success) {
+        setIsResetOpen(false)
+        toast.success(`Tautan pembaruan kata sandi telah dikirim ke ${selectedAkun.email}. Kata sandi lama tetap berlaku sampai diganti.`)
+      } else {
+        toast.error(response.message || "Gagal mengirim tautan reset password.")
+      }
+    } catch (error: any) {
+      console.error("Error resetting password:", error)
+      toast.error(error.response?.data?.message || "Gagal mengirim tautan reset password.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleConfirmToggleStatus = () => {
+  const handleConfirmToggleStatus = async () => {
     if (!selectedAkun) return
 
     if (selectedAkun.email === currentEmail && selectedAkun.status === "aktif") {
@@ -316,25 +403,31 @@ export default function AkunHakAksesPage() {
       return
     }
 
-    const nextStatus: StatusEntitas = selectedAkun.status === "aktif" ? "nonaktif" : "aktif"
-    setData((prev) =>
-      prev.map((a) => (a.id === selectedAkun.id ? { ...a, status: nextStatus } : a))
-    )
-    auditUPT.unshift({
-      id: `AUD-${Date.now().toString().slice(-4)}`,
-      waktu: "15 Nov 2026, 22:15",
-      tanggal: "2026-11-15",
-      pelaku: "Dewi Anggraini, S.Kom., M.T.",
-      peran: "UPT Remunerasi",
-      unit: selectedAkun.unit || "UPT Remunerasi",
-      aksi: "Ubah",
-      objek: selectedAkun.nama,
-      detail: `Mengubah status akun ${selectedAkun.nama} (${selectedAkun.email}) menjadi ${nextStatus.toUpperCase()}`,
-      hasil: "Berhasil",
-    })
+    try {
+      setLoading(true)
+      const response = await uptRemunerasiService.toggleAkunStatus(selectedAkun.id)
+      
+      if (response.success) {
+        const nextStatus: StatusEntitas = selectedAkun.status === "aktif" ? "nonaktif" : "aktif"
+        
+        // Update local state
+        setData((prev) =>
+          prev.map((a) => (a.id === selectedAkun.id ? { ...a, status: nextStatus } : a))
+        )
 
-    setIsToggleStatusOpen(false)
-    toast.success(`Status akun ${selectedAkun.nama} berhasil diubah menjadi ${nextStatus.toUpperCase()}.`)
+        setIsToggleStatusOpen(false)
+        toast.success(`Status akun ${selectedAkun.nama} berhasil diubah menjadi ${nextStatus.toUpperCase()}.`)
+      } else {
+        toast.error(response.message || "Gagal mengubah status akun.")
+        setIsToggleStatusOpen(false)
+      }
+    } catch (error: any) {
+      console.error("Error toggling account status:", error)
+      toast.error(error.response?.data?.message || "Gagal mengubah status akun.")
+      setIsToggleStatusOpen(false)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const columns: ColumnDef<AkunUserItem>[] = [
@@ -501,6 +594,14 @@ export default function AkunHakAksesPage() {
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+        </div>
+      )}
+      
+      {!loading && (
+        <>
       <PageHeader
         title="Akun & Hak Akses"
         subtitle="Kelola kredensial akun pengguna, penugasan peran pejabat unit & tim universitas, serta matriks hak akses sistem SIREMUN-P1."
@@ -1101,6 +1202,8 @@ export default function AkunHakAksesPage() {
           </div>
         </div>
       </FormDialog>
+        </>
+      )}
     </div>
   )
 }

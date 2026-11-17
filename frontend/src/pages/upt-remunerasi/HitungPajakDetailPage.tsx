@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -11,6 +11,7 @@ import {
   ShieldAlert,
   Lock,
   AlertCircle,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -38,6 +39,7 @@ import {
   type UPTStatus,
 } from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 type ValidationFilterKey =
   | "semua"
@@ -57,6 +59,7 @@ export default function HitungPajakDetailPage() {
   const isAlreadyFinal = status === "netto_ditetapkan" || status === "amprah_tersedia"
   const isReadyToProcess = status === "terverifikasi"
 
+  const [loading, setLoading] = useState(false)
   const [isCalculated, setIsCalculated] = useState<boolean>(isAlreadyFinal)
   const [hitungError, setHitungError] = useState<string | null>(null)
 
@@ -73,6 +76,55 @@ export default function HitungPajakDetailPage() {
   const [koreksiNominal, setKoreksiNominal] = useState("")
   const [koreksiAlasan, setKoreksiAlasan] = useState("")
   const [koreksiError, setKoreksiError] = useState("")
+
+  // Fetch detail data from API
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        setLoading(true)
+        const response = await uptRemunerasiService.getHitungPajakDetail(decodedId)
+        
+        if (response.success && response.data) {
+          // Map pegawai list from API
+          const mappedPegawai: PegawaiHitungP1Item[] = response.data.pegawai.map((p: any) => ({
+            id: p.id.toString(),
+            nama: p.nama,
+            nip: p.nip,
+            grade: p.grade,
+            p1Gross: p.p1_gross || 0,
+            pengaliStatus: p.pengali_status || 100,
+            potonganKehadiran: p.potongan_kehadiran || 0,
+            potonganHukdis: p.potongan_hukdis || 0,
+            totalPotongan: p.total_potongan || 0,
+            p1SetelahPotongan: p.p1_setelah_potongan || 0,
+            pajak: p.pajak || 0,
+            netto: p.netto || 0,
+            melebihiAmbang50: p.melebihi_ambang_50 || false,
+            catatan: p.catatan || "",
+            flags: {
+              ketidakhadiranLebih50: p.flags?.ketidakhadiran_lebih_50 || false,
+              hukumanDisiplinAktif: p.flags?.hukuman_disiplin_aktif || false,
+              jabatanBerubah: p.flags?.jabatan_berubah || false,
+              tidakMemenuhiSyaratBayar: p.flags?.tidak_memenuhi_syarat_bayar || false,
+              dikoreksiBendahara: p.flags?.dikoreksi_bendahara || false,
+            },
+            riwayatKoreksiPajak: p.riwayat_koreksi_pajak || [],
+          }))
+          setPegawaiList(mappedPegawai)
+          setStatus(response.data.status)
+        }
+      } catch (error) {
+        console.error("Error fetching detail:", error)
+        // Keep using dummy data on error
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (decodedId) {
+      fetchDetail()
+    }
+  }, [decodedId])
 
   if (!basePengajuan) {
     return <EmptyHint text="Pengajuan tidak ditemukan." />
@@ -118,10 +170,26 @@ export default function HitungPajakDetailPage() {
     toast.success("Pratinjau perhitungan pajak PPh 21 TER dan P1 Netto berhasil dihitung (belum disimpan).")
   }
 
-  const handleConfirmTetapkanNetto = () => {
-    setStatus("netto_ditetapkan")
-    setIsConfirmTetapkanOpen(false)
-    toast.success("P1 Netto ditetapkan! Slip P1 terbit otomatis untuk seluruh pegawai unit.")
+  const handleConfirmTetapkanNetto = async () => {
+    try {
+      setLoading(true)
+      const response = await uptRemunerasiService.tetapkanNetto(decodedId, {
+        catatan: "P1 Netto ditetapkan oleh UPT Remunerasi"
+      })
+
+      if (response.success) {
+        setStatus("netto_ditetapkan")
+        setIsConfirmTetapkanOpen(false)
+        toast.success("P1 Netto ditetapkan! Slip P1 terbit otomatis untuk seluruh pegawai unit.")
+      } else {
+        toast.error(response.message || "Gagal menetapkan netto.")
+      }
+    } catch (error: any) {
+      console.error("Error tetapkan netto:", error)
+      toast.error(error.response?.data?.message || "Gagal menetapkan netto.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleOpenKoreksi = (item: PegawaiHitungP1Item) => {

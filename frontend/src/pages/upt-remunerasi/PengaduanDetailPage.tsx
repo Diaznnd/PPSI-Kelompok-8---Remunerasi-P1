@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, Link } from "react-router-dom"
 import {
   ArrowLeft,
@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Lock,
   Send,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -20,21 +21,51 @@ import {
   Card,
   CardContent,
 } from "./components"
-import { pengaduanUPT, type PengaduanStatus } from "@/data/dummy-upt"
+import { type PengaduanStatus } from "@/data/dummy-upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { useAuth } from "@/context/AuthContext"
 
 export default function PengaduanDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const baseData = pengaduanUPT.find((p) => p.id === id) || pengaduanUPT[0]
-
-  const [status, setStatus] = useState<PengaduanStatus>(baseData.status)
-  const [savedTanggapan, setSavedTanggapan] = useState<string>(baseData.tanggapan ?? "")
+  const { akun } = useAuth()
+  
+  const [loading, setLoading] = useState(true)
+  const [pengaduan, setPengaduan] = useState<any>(null)
+  const [status, setStatus] = useState<PengaduanStatus>("diteruskan")
+  const [savedTanggapan, setSavedTanggapan] = useState<string>("")
   const [tanggapanInput, setTanggapanInput] = useState("")
   const [inputError, setInputError] = useState("")
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (id) {
+      loadPengaduanDetail()
+    }
+  }, [id])
+
+  const loadPengaduanDetail = async () => {
+    try {
+      setLoading(true)
+      const res = await uptRemunerasiService.getPengaduanEskalasiDetail(id!)
+      
+      setPengaduan(res.data)
+      setStatus(res.data.status || "diteruskan")
+      setSavedTanggapan(res.data.tanggapan || "")
+    } catch (error: any) {
+      console.error("Error loading pengaduan detail:", error)
+      toast.error("Gagal memuat detail pengaduan")
+      // Don't set dummy fallback for detail page, just show error
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const isSelesai = status === "selesai" || status === "Selesai"
-  const isOwnPengaduan =
-    baseData.pegawai.startsWith("Dewi Anggraini") || baseData.nip === "198405122008122001"
+  const isOwnPengaduan = pengaduan && akun && (
+    pengaduan.pegawai_nama === akun.nama || 
+    pengaduan.nip === akun.NIP
+  )
 
   const handleKlikSelesaikan = () => {
     if (!tanggapanInput.trim()) {
@@ -45,11 +76,63 @@ export default function PengaduanDetailPage() {
     setIsConfirmOpen(true)
   }
 
-  const handleConfirmSelesaikan = () => {
-    setSavedTanggapan(tanggapanInput.trim())
-    setStatus("selesai")
-    setIsConfirmOpen(false)
-    toast.success("Tanggapan resmi disimpan dan status pengaduan ditandai Selesai.")
+  const handleConfirmSelesaikan = async () => {
+    if (!pengaduan) return
+    
+    setSubmitting(true)
+    try {
+      await uptRemunerasiService.tanggapiPengaduan(pengaduan.id, {
+        isi: tanggapanInput.trim(),
+        status: "selesai",
+      })
+      
+      setSavedTanggapan(tanggapanInput.trim())
+      setStatus("selesai")
+      setIsConfirmOpen(false)
+      toast.success("Tanggapan resmi disimpan dan status pengaduan ditandai Selesai.")
+      
+      // Reload data
+      await loadPengaduanDetail()
+    } catch (error: any) {
+      console.error("Error tanggapi pengaduan:", error)
+      toast.error(error.response?.data?.message || "Gagal menyimpan tanggapan")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!pengaduan) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center flex-col gap-3">
+        <AlertCircle className="size-12 text-muted-foreground" />
+        <p className="text-muted-foreground">Pengaduan tidak ditemukan</p>
+        <Button asChild variant="outline">
+          <Link to="/upt-remunerasi/pengaduan">Kembali ke Daftar</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const baseData = {
+    id: pengaduan.id?.toString() || "-",
+    tiket: pengaduan.tiket || pengaduan.nomor_tiket || "-",
+    pegawai: pengaduan.pegawai_nama || pengaduan.nama || "-",
+    nip: pengaduan.nip || pengaduan.NIP || "-",
+    unit: pengaduan.unit || pengaduan.unit_nama || "-",
+    kategori: pengaduan.kategori || "Umum",
+    tanggal: pengaduan.tanggal || pengaduan.created_at || "-",
+    judul: pengaduan.judul || "Detail Pengaduan",
+    keterangan: pengaduan.isi || pengaduan.keterangan || "Tidak ada keterangan",
+    tanggapan: pengaduan.tanggapan || null,
+    status: pengaduan.status || "diteruskan",
   }
 
   return (
@@ -277,6 +360,7 @@ export default function PengaduanDetailPage() {
         }
         confirmText="Selesaikan Tiket"
         onConfirm={handleConfirmSelesaikan}
+        disabled={submitting}
       />
     </div>
   )

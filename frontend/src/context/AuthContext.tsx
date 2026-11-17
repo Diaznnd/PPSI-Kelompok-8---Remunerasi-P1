@@ -1,9 +1,26 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { api } from "@/lib/api"
 import type { Peran } from "@/lib/peran"
-import { AKUN_MOCK } from "@/data/akun-mock"
+import { getAbilities, type Ability } from "@/lib/rbac"
 
-type Akun = { id: number; username: string; peran: Peran }
+export type PeranUnit = {
+  peran: string
+  unit_id: number | null
+  unit_nama: string | null
+}
+
+export type Akun = {
+  id: number
+  username: string
+  email?: string
+  peran: Peran
+  pegawai_id?: number
+  NIP?: string
+  nama?: string
+  unit_nama?: string
+  daftar_peran?: PeranUnit[]
+  abilities?: Ability[]
+}
 
 type AuthCtx = {
   akun: Akun | null
@@ -12,57 +29,76 @@ type AuthCtx = {
   logout: () => void
 }
 
-// Login palsu untuk pengembangan frontend (aktif kalau VITE_MOCK_AUTH=true di .env).
-// Daftar akun ada di src/data/akun-mock.ts.
-const MOCK = import.meta.env.VITE_MOCK_AUTH === "true"
-const bacaAkunMock = (): Akun | null => {
-  try { return JSON.parse(localStorage.getItem("mock_akun") ?? "null") } catch { return null }
-}
-
 const Ctx = createContext<AuthCtx>(null!)
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(Ctx)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [akun, setAkun] = useState<Akun | null>(() => (MOCK && localStorage.getItem("token") ? bacaAkunMock() : null))
-  const [loading, setLoading] = useState(() => !MOCK && !!localStorage.getItem("token"))
+  const [akun, setAkun] = useState<Akun | null>(null)
+  const [loading, setLoading] = useState<boolean>(() => !!localStorage.getItem("token"))
 
   useEffect(() => {
-    if (MOCK || !localStorage.getItem("token")) return
+    const token = localStorage.getItem("token")
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
+    // Ambil data identitas dan abilities dari API Backend (/api/me)
     api.get("/me")
-      .then((r) => setAkun(r.data))
-      .catch(() => localStorage.removeItem("token"))
+      .then((r) => {
+        const data = r.data
+        setAkun({
+          id: data.id,
+          username: data.username,
+          email: data.email,
+          peran: data.peran,
+          nama: data.nama,
+          unit_nama: data.unit_nama,
+          pegawai_id: data.pegawai_id,
+          NIP: data.NIP,
+          daftar_peran: data.daftar_peran,
+          abilities: data.abilities && data.abilities.length > 0 ? data.abilities : getAbilities(data.peran),
+        })
+      })
+      .catch(() => {
+        localStorage.removeItem("token")
+        setAkun(null)
+      })
       .finally(() => setLoading(false))
   }, [])
 
-  const login = async (username: string, password: string) => {
-    if (MOCK) {
-      const cocok = AKUN_MOCK.find((x) => x.username === username.trim().toLowerCase() && x.password === password)
-      if (!cocok) throw { response: { data: { message: "Email atau kata sandi salah." } } }
-      const a: Akun = { id: cocok.id, username: cocok.username, peran: cocok.peran }
-      localStorage.setItem("token", "mock")
-      localStorage.setItem("mock_akun", JSON.stringify(a))
-      setAkun(a)
-      return a
-    }
+  const login = async (username: string, password: string): Promise<Akun> => {
+    // Autentikasi langsung ke database melalui POST /api/login
     const { data } = await api.post("/login", { username, password })
     localStorage.setItem("token", data.token)
-    setAkun(data.akun)
-    return data.akun as Akun
+
+    const user: Akun = {
+      id: data.akun.id,
+      username: data.akun.username,
+      email: data.akun.email,
+      peran: data.akun.peran,
+      nama: data.akun.nama,
+      unit_nama: data.akun.unit_nama,
+      pegawai_id: data.akun.pegawai_id,
+      NIP: data.akun.NIP,
+      daftar_peran: data.akun.daftar_peran,
+      abilities: data.abilities && data.abilities.length > 0 ? data.abilities : getAbilities(data.akun.peran),
+    }
+
+    setAkun(user)
+    return user
   }
 
   const logout = () => {
-    if (MOCK) {
-      localStorage.removeItem("token")
-      localStorage.removeItem("mock_akun")
-      window.location.href = "/login"
-      return
-    }
-    api.post("/logout").finally(() => {
-      localStorage.removeItem("token")
-      setAkun(null)
-      window.location.href = "/login"
-    })
+    // Logout dengan menghapus token di backend dan local storage
+    api.post("/logout")
+      .catch(() => {})
+      .finally(() => {
+        localStorage.removeItem("token")
+        setAkun(null)
+        window.location.href = "/login"
+      })
   }
 
   return <Ctx.Provider value={{ akun, loading, login, logout }}>{children}</Ctx.Provider>

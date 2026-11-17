@@ -7,8 +7,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { IconBox, PageHeading, Panel } from "@/components/pegawai/shared"
-import { DAFTAR_PERIODE, KATEGORI_PENGADUAN, PERIODE_AKTIF } from "@/data/dummy-pegawai"
 import { cn } from "@/lib/utils"
+
+// Constants
+const DAFTAR_PERIODE = [
+  "Oktober 2026",
+  "September 2026",
+  "Agustus 2026",
+  "Juli 2026",
+  "Juni 2026",
+  "Mei 2026"
+]
+const PERIODE_AKTIF = "Oktober 2026"
+const KATEGORI_PENGADUAN = [
+  "Kesalahan data pribadi",
+  "Kesalahan perhitungan",
+  "Ketidaksesuaian jabatan/grade",
+  "Masalah pembayaran",
+  "Lainnya"
+]
 
 const MAKS_BYTE = 5 * 1024 * 1024
 const TIPE = ["application/pdf", "image/jpeg", "image/png"]
