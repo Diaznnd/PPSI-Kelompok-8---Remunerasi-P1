@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -6,14 +6,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { Stepper } from "@/components/bendahara/Stepper"
 import { RIWAYAT_UNIT, type RiwayatUnit } from "@/data/dummy-pjunit"
+import { pjUnitService } from "@/services/pjUnitService"
 import { cn } from "@/lib/utils"
 
-const warna = (s: string) => (s === "Disetujui" ? "border-emerald-200 bg-emerald-100 text-emerald-800" : "border-purple-200 bg-purple-100 text-purple-800")
+const warna = (s: string) => {
+  if (s === "Disetujui") return "border-emerald-200 bg-emerald-100 text-emerald-800"
+  if (s === "Dikembalikan") return "border-red-200 bg-red-100 text-red-800"
+  if (s === "Diajukan") return "border-blue-200 bg-blue-100 text-blue-800"
+  return "border-purple-200 bg-purple-100 text-purple-800"
+}
 
 export default function StatusPengajuanUnitPage() {
+  const [riwayatList, setRiwayatList] = useState<RiwayatUnit[]>(RIWAYAT_UNIT)
   const [periode, setPeriode] = useState(RIWAYAT_UNIT[0].periode)
   const [info, setInfo] = useState<RiwayatUnit | null>(null)
-  const r = RIWAYAT_UNIT.find((x) => x.periode === periode) ?? RIWAYAT_UNIT[0]
+
+  useEffect(() => {
+    pjUnitService.getStatusPengajuan().then((res) => {
+      if (res?.data?.length) {
+        setRiwayatList(res.data)
+        setPeriode(res.data[0].periode)
+      }
+    }).catch(() => {})
+  }, [])
+
+  const r = riwayatList.find((x) => x.periode === periode) ?? riwayatList[0] ?? RIWAYAT_UNIT[0]
 
   return (
     <>
@@ -23,7 +40,7 @@ export default function StatusPengajuanUnitPage() {
           <p className="mb-1.5 text-xs text-muted-foreground">Periode</p>
           <Select value={periode} onValueChange={setPeriode}>
             <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
-            <SelectContent>{RIWAYAT_UNIT.map((x) => <SelectItem key={x.periode} value={x.periode}>{x.periode}</SelectItem>)}</SelectContent>
+            <SelectContent>{riwayatList.map((x) => <SelectItem key={x.periode} value={x.periode}>{x.periode}</SelectItem>)}</SelectContent>
           </Select>
         </Panel>
 
@@ -35,7 +52,7 @@ export default function StatusPengajuanUnitPage() {
             </div>
             <Badge variant="outline" className={warna(r.status)}>{r.status}</Badge>
           </div>
-          <div className="px-6 py-8"><Stepper steps={["Draft", "Diajukan", "Diverifikasi", "Disetujui"]} done={r.status === "Disetujui" ? 4 : 3} /></div>
+          <div className="px-6 py-8"><Stepper steps={["Draft", "Diajukan", "Diverifikasi", "Disetujui"]} done={(r as any).done_step || (r.status === "Disetujui" ? 4 : 3)} /></div>
         </Panel>
 
         <Panel className="p-0">
@@ -49,7 +66,7 @@ export default function StatusPengajuanUnitPage() {
                 <tr>{["Periode", "Status", "Tanggal Diajukan", "Keputusan Verifikator", "Jumlah Pengembalian"].map((h) => <th key={h} className="px-5 py-3 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody>
-                {RIWAYAT_UNIT.map((x) => (
+                {riwayatList.map((x) => (
                   <tr key={x.periode} onClick={() => setInfo(x)} className={cn("cursor-pointer border-t odd:bg-muted/20 hover:bg-primary/5", x.periode === periode && "bg-primary/5")}>
                     <td className="px-5 py-4 font-bold">{x.periode}</td>
                     <td className="px-5 py-4"><Badge variant="outline" className={warna(x.status)}>{x.status}</Badge></td>

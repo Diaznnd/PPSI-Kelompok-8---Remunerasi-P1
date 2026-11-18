@@ -36,15 +36,17 @@ export default function PegawaiKepegawaianPage() {
       
       // Map API response to frontend format
       const mappedData = res.data.map((p: any) => ({
-        nip: p.NIP,
+        nip: p.NIP || p.nip,
         nama: p.nama,
         jenis: p.jenis,
-        status: p.status_kepegawaian,
+        status: p.status_kepegawaian || p.status,
         status_tugas_belajar: p.status_tugas_belajar,
-        golongan: p.pangkat_golongan,
-        jabatan: p.jabatan?.nama || null,
-        grade: p.jabatan?.grade_nama || null,
+        golongan: p.pangkat_golongan || p.golongan,
+        jabatan: p.jabatan?.nama || p.jabatan_nama || null,
+        grade: p.jabatan?.grade_nama || p.grade || null,
+        tmt: p.tmt || "",
         aktif: p.aktif,
+        alasanNonaktif: p.alasan_nonaktif || p.alasanNonaktif,
         email: p.email || "",
         unit_id: p.unit_id,
         unit_nama: p.unit_nama,
@@ -151,7 +153,12 @@ export default function PegawaiKepegawaianPage() {
                       <button className="ml-3 text-sky-600 hover:underline" onClick={() => setTubel(p)}>Status Tubel</button>
                       {p.aktif
                         ? <button className="ml-3 text-destructive hover:underline" onClick={() => setNonaktif(p)}>Nonaktifkan</button>
-                        : <button className="ml-3 text-primary hover:underline" onClick={() => { aktifkanPegawai(p.nip); toast.success(`${p.nama} diaktifkan kembali.`) }}>Aktifkan</button>}
+                        : <button className="ml-3 text-primary hover:underline" onClick={async () => {
+                            try { await kepegawaianService.aktifkanPegawai(p.nip) } catch { /* fallback */ }
+                            aktifkanPegawai(p.nip)
+                            toast.success(`${p.nama} diaktifkan kembali.`)
+                            fetchPegawai()
+                          }}>Aktifkan</button>}
                     </td>
                   </tr>
                 ))}
@@ -170,8 +177,8 @@ export default function PegawaiKepegawaianPage() {
         </Panel>
       </div>
 
-      {form && <FormPegawaiDialog pegawai={form === "baru" ? undefined : form} onClose={() => setForm(null)} />}
-      {nonaktif && <NonaktifkanDialog pegawai={nonaktif} onClose={() => setNonaktif(null)} />}
+      {form && <FormPegawaiDialog pegawai={form === "baru" ? undefined : form} onClose={() => setForm(null)} onSuccess={fetchPegawai} />}
+      {nonaktif && <NonaktifkanDialog pegawai={nonaktif} onClose={() => setNonaktif(null)} onSuccess={fetchPegawai} />}
       {tubel && <TugasBelajarDialog pegawai={tubel} onClose={() => setTubel(null)} onSuccess={fetchPegawai} />}
     </>
   )

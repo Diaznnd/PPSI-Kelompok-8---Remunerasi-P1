@@ -6,10 +6,15 @@ use App\Http\Controllers\Bendahara\DashboardController as BendaharaDashboardCont
 use App\Http\Controllers\Bendahara\PerhitunganController as BendaharaPerhitunganController;
 use App\Http\Controllers\Bendahara\RekapitulasiController as BendaharaRekapitulasiController;
 use App\Http\Controllers\Bendahara\StatusPengajuanController as BendaharaStatusPengajuanController;
+use App\Http\Controllers\Kepegawaian\HukumanDisiplinController as KepegawaianHukumanDisiplinController;
+use App\Http\Controllers\Kepegawaian\PengaduanKepegawaianController as KepegawaianPengaduanController;
+use App\Http\Controllers\Kepegawaian\PresensiController as KepegawaianPresensiController;
 use App\Http\Controllers\Kepegawaian\StatusPegawaiController as KepegawaianStatusPegawaiController;
+use App\Http\Controllers\Kepegawaian\UsulanJabatanController as KepegawaianUsulanJabatanController;
 use App\Http\Controllers\Pegawai\PengaduanController as PegawaiPengaduanController;
 use App\Http\Controllers\Pegawai\ProfilController as PegawaiProfilController;
 use App\Http\Controllers\Pegawai\SlipController as PegawaiSlipController;
+use App\Http\Controllers\PjUnit\PjUnitController;
 use App\Http\Controllers\UptRemunerasi\AmprahUniversitasController as UptAmprahUniversitasController;
 use App\Http\Controllers\UptRemunerasi\AuditLogController as UptAuditLogController;
 use App\Http\Controllers\UptRemunerasi\DashboardController as UptDashboardController;
@@ -60,21 +65,71 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ========================================================
-    // ROLE KEPEGAWAIAN (MANAJEMEN PEGAWAI & STATUS TUGAS BELAJAR)
+    // ROLE KEPEGAWAIAN (L0-L6: PEGAWAI, HUKDIS, PRESENSI, USULAN, DOKUMEN, PENGADUAN)
     // ========================================================
-    Route::prefix('kepegawaian')->group(function () {
-        // Data Pegawai
+    Route::prefix('kepegawaian')->middleware('peran:kepegawaian')->group(function () {
+        // Dashboard, L0 Acuan Hitung Manual 10 Pegawai Sampel, & L11 Uji Silang Engine P1
+        Route::get('/dashboard', [KepegawaianUsulanJabatanController::class, 'dashboard']);
+        Route::get('/acuan-uji-p1', [KepegawaianPengaduanController::class, 'acuanUjiP1']);
+        Route::get('/uji-silang-p1', [PjUnitController::class, 'ujiSilangEngineP1']);
+
+        // L1 (FR-03): CRUD Data Pegawai, Tolak NIP Ganda, Nonaktifkan/Aktifkan, Status Tugas Belajar
         Route::get('/pegawai', [KepegawaianStatusPegawaiController::class, 'index']);
+        Route::post('/pegawai', [KepegawaianStatusPegawaiController::class, 'store']);
+        Route::get('/pegawai/{nip}', [KepegawaianStatusPegawaiController::class, 'show']);
+        Route::put('/pegawai/{nip}', [KepegawaianStatusPegawaiController::class, 'update']);
+        Route::patch('/pegawai/{nip}/nonaktifkan', [KepegawaianStatusPegawaiController::class, 'nonaktifkan']);
+        Route::delete('/pegawai/{nip}', [KepegawaianStatusPegawaiController::class, 'nonaktifkan']);
+        Route::patch('/pegawai/{nip}/aktifkan', [KepegawaianStatusPegawaiController::class, 'aktifkan']);
         Route::put('/pegawai/{nip}/tugas-belajar', [KepegawaianStatusPegawaiController::class, 'updateStatusTugasBelajar']);
 
-        // Usulan Jabatan
-        Route::get('/dashboard', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'dashboard']);
-        Route::get('/usulan', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'index']);
-        Route::post('/usulan', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'store']);
-        Route::get('/usulan/{id}', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'show']);
-        Route::put('/usulan/{id}', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'update']);
-        Route::delete('/usulan/{id}', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'destroy']);
-        Route::get('/jabatan/list', [\App\Http\Controllers\Kepegawaian\UsulanJabatanController::class, 'listJabatan']);
+        // L2 (FR-06): Hukuman Disiplin & Validasi Tanggal
+        Route::get('/hukuman', [KepegawaianHukumanDisiplinController::class, 'index']);
+        Route::post('/hukuman', [KepegawaianHukumanDisiplinController::class, 'store']);
+        Route::put('/hukuman/{id}', [KepegawaianHukumanDisiplinController::class, 'update']);
+
+        // L3 & L4 (FR-07, NFR-11): Impor Presensi & Cuti/Izin, Baris Gagal, dan Koreksi Presensi
+        Route::get('/presensi', [KepegawaianPresensiController::class, 'index']);
+        Route::post('/presensi/import', [KepegawaianPresensiController::class, 'import']);
+        Route::put('/presensi/baris-gagal/{reportId}/{barisIndex}', [KepegawaianPresensiController::class, 'koreksiBarisGagal']);
+        Route::put('/presensi/{nip}', [KepegawaianPresensiController::class, 'koreksiPresensi']);
+        Route::get('/presensi/export', [KepegawaianPresensiController::class, 'exportCsv']);
+
+        // L5 & L6 (FR-04, FR-05, NFR-11): Usulan Perubahan Jabatan/Grade & Unggah Dokumen SK/SPMT PDF maks. 5 MB
+        Route::get('/usulan', [KepegawaianUsulanJabatanController::class, 'index']);
+        Route::post('/usulan', [KepegawaianUsulanJabatanController::class, 'store']);
+        Route::get('/usulan/{id}', [KepegawaianUsulanJabatanController::class, 'show']);
+        Route::put('/usulan/{id}', [KepegawaianUsulanJabatanController::class, 'update']);
+        Route::post('/usulan/{id}', [KepegawaianUsulanJabatanController::class, 'update']);
+        Route::post('/usulan/{id}/ajukan-ulang', [KepegawaianUsulanJabatanController::class, 'update']);
+        Route::delete('/usulan/{id}', [KepegawaianUsulanJabatanController::class, 'destroy']);
+        Route::post('/usulan/{id}/dokumen', [KepegawaianUsulanJabatanController::class, 'uploadDokumen']);
+        Route::get('/dokumen/{dokumenId}', [KepegawaianUsulanJabatanController::class, 'downloadDokumen']);
+        Route::get('/dokumen/{dokumenId}/download', [KepegawaianUsulanJabatanController::class, 'downloadDokumen']);
+        Route::get('/jabatan/list', [KepegawaianUsulanJabatanController::class, 'listJabatan']);
+
+        // FR-08: Menindaklanjuti Pengaduan Pegawai
+        Route::get('/pengaduan', [KepegawaianPengaduanController::class, 'index']);
+        Route::get('/pengaduan/{id}', [KepegawaianPengaduanController::class, 'show']);
+        Route::post('/pengaduan/{id}/tanggapi', [KepegawaianPengaduanController::class, 'tanggapi']);
+    });
+
+    // ========================================================
+    // ROLE PENANGGUNG JAWAB REMUNERASI UNIT (L7-L11: FR-18, FR-19, FR-20 - HANYA BACA)
+    // ========================================================
+    Route::prefix('pj-unit')->middleware('peran:pj_unit')->group(function () {
+        Route::get('/dashboard', [PjUnitController::class, 'dashboard']);
+        Route::get('/pegawai', [PjUnitController::class, 'pegawai']);               // L7 (FR-20)
+        Route::get('/status', [PjUnitController::class, 'statusPengajuan']);        // L8 (FR-18)
+        Route::get('/rekapitulasi', [PjUnitController::class, 'rekapitulasi']);     // L9 (FR-19)
+        Route::get('/rekapitulasi/export', [PjUnitController::class, 'exportRekapitulasi']);
+        Route::get('/uji-silang-p1', [PjUnitController::class, 'ujiSilangEngineP1']); // L11
+
+        // L10: Penolakan tegas terhadap seluruh percobaan modifikasi data (Hanya Baca / Read-Only)
+        Route::match(['post', 'put', 'patch', 'delete'], '/pegawai/{any?}', [PjUnitController::class, 'rejectWriteAction'])->where('any', '.*');
+        Route::match(['post', 'put', 'patch', 'delete'], '/status/{any?}', [PjUnitController::class, 'rejectWriteAction'])->where('any', '.*');
+        Route::match(['post', 'put', 'patch', 'delete'], '/rekapitulasi/{any?}', [PjUnitController::class, 'rejectWriteAction'])->where('any', '.*');
+        Route::match(['post', 'put', 'patch', 'delete'], '/{any?}', [PjUnitController::class, 'rejectWriteAction'])->where('any', '.*');
     });
 
     // ========================================================

@@ -13,12 +13,14 @@ return new class extends Migration
             $table->foreignId('unit_id')->constrained('unit_kerja')->cascadeOnDelete();
             $table->string('NIP', 30)->nullable(); // Operator yang impor
             $table->foreign('NIP')->references('NIP')->on('pegawai')->nullOnDelete();
+            $table->string('nama_file')->nullable();
             $table->string('masa_file')->nullable(); // Contoh: "Oktober 2026"
             $table->string('file_hash')->nullable(); // Hash MD5/SHA untuk cek duplikat
-            $table->string('status')->default('pending'); // pending, valid, gagal
+            $table->string('status')->default('pending'); // pending, valid, perlu_koreksi, gagal
             $table->integer('jumlah_valid')->default(0);
             $table->integer('jumlah_gagal')->default(0);
             $table->json('baris_gagal')->nullable(); // Daftar baris yang gagal diproses
+            $table->string('durasi')->nullable();
             $table->timestamp('dimpor_at')->nullable();
             $table->string('periode')->nullable(); // Format: YYYY-MM
             $table->timestamps();

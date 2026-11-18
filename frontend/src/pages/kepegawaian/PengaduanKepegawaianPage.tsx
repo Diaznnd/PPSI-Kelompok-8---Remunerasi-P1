@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowUpRight, CheckCircle2, Inbox, Search, type LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -7,18 +7,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, TabBar } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { warnaAduan } from "@/components/kepegawaian/warna"
-import { KATEGORI_ADU, type StatusAduan } from "@/data/dummy-kepegawaian"
+import { KATEGORI_ADU, type AduanKep, type StatusAduan } from "@/data/dummy-kepegawaian"
 import { useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
 
 type Tab = "perlu" | "teruskan" | "selesai" | "semua"
 const cocok: Record<Tab, (s: StatusAduan) => boolean> = { perlu: (s) => s === "Diajukan", teruskan: (s) => s === "Diteruskan", selesai: (s) => s === "Selesai", semua: () => true }
 
 export default function PengaduanKepegawaianPage() {
-  const { pengaduan } = useKepeg()
+  const { pengaduan: pengaduanDummy } = useKepeg()
+  const [pengaduan, setPengaduan] = useState<AduanKep[]>(pengaduanDummy)
   const [tab, setTab] = useState<Tab>("perlu")
   const [q, setQ] = useState("")
   const [kategori, setKategori] = useState("semua")
+
+  useEffect(() => {
+    kepegawaianService.getPengaduanList().then((res) => {
+      if (res?.data?.length) setPengaduan(res.data)
+    }).catch(() => {})
+  }, [])
   const n = (t: Tab) => pengaduan.filter((a) => cocok[t](a.status)).length
   const rows = useMemo(() => pengaduan.filter((a) => cocok[tab](a.status)).filter((a) => (a.id + a.nama + a.isi).toLowerCase().includes(q.toLowerCase())).filter((a) => kategori === "semua" || a.kategori === kategori), [pengaduan, tab, q, kategori])
   const kartu: [Tab, string, LucideIcon, string][] = [["perlu", "Perlu ditanggapi", Inbox, "bg-sky-100 text-sky-700"], ["teruskan", "Diteruskan ke UPT", ArrowUpRight, "bg-orange-100 text-orange-700"], ["selesai", "Selesai", CheckCircle2, "bg-emerald-100 text-emerald-700"]]

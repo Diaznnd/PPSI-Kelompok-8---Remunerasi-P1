@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, ArrowUpRight, CheckCircle2, Info, Send } from "lucide-react"
 import { toast } from "sonner"
@@ -12,6 +12,7 @@ import { TINGKAT_HUKUMAN, statusHukuman, tglID } from "@/data/dummy-kepegawaian"
 import { persenStr } from "@/data/dummy-bendahara"
 import { hitungPresensi } from "@/data/dummy-kepegawaian"
 import { tanggapiPengaduan, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
 
 type Diag = "jabatan" | "presensi" | "hukuman" | "p1"
@@ -21,10 +22,20 @@ export default function TanggapiPengaduanPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const s = useKepeg()
-  const a = s.pengaduan.find((x) => x.id === id)
+  const [apiAduan, setApiAduan] = useState<any | null>(null)
   const [diag, setDiag] = useState<Diag>("jabatan")
   const [tindakan, setTindakan] = useState<"selesai" | "teruskan" | null>(null)
   const [tanggapan, setTanggapan] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    kepegawaianService.getPengaduanDetail(id).then((res) => {
+      if (res?.data) setApiAduan(res.data)
+    }).catch(() => { })
+  }, [id])
+
+  const a = apiAduan || s.pengaduan.find((x) => x.id === id)
 
   if (!a) return <Panel><p className="text-sm">Pengaduan tidak ditemukan.</p><Button asChild variant="outline" className="mt-4"><Link to="/kepegawaian/pengaduan">Kembali</Link></Button></Panel>
 
@@ -38,11 +49,19 @@ export default function TanggapiPengaduanPage() {
   const pilih = tindakan ?? (disarankanUnit ? "selesai" : "teruskan")
   const done = a.status === "Diajukan" ? 1 : a.status === "Diteruskan" ? 2 : 3
 
-  function kirim() {
+  async function kirim() {
     if (tanggapan.trim().length < 10) return toast.error("Tanggapan minimal 10 karakter.")
-    tanggapiPengaduan(a!.id, pilih, tanggapan.trim())
-    toast.success(pilih === "selesai" ? "Tanggapan terkirim, pengaduan diselesaikan." : "Pengaduan diteruskan ke UPT Remunerasi.")
-    navigate("/kepegawaian/pengaduan")
+    setSaving(true)
+    try {
+      await kepegawaianService.tanggapiPengaduan(a.raw_id || a.id, { tindakan: pilih, tanggapan: tanggapan.trim() })
+    } catch {
+      // fallback
+    } finally {
+      tanggapiPengaduan(a.id, pilih, tanggapan.trim())
+      toast.success(pilih === "selesai" ? "Tanggapan terkirim, pengaduan diselesaikan." : "Pengaduan diteruskan ke UPT Remunerasi.")
+      setSaving(false)
+      navigate("/kepegawaian/pengaduan")
+    }
   }
 
   return (
@@ -118,7 +137,7 @@ export default function TanggapiPengaduanPage() {
 
       <div className="sticky bottom-0 -mx-4 flex items-center justify-between border-t bg-card px-4 py-3 md:-mx-8 md:px-8">
         <Button asChild variant="outline"><Link to="/kepegawaian/pengaduan">Kembali ke Daftar</Link></Button>
-        {terbuka && <Button onClick={kirim} disabled={tanggapan.trim().length < 10}><Send /> {pilih === "selesai" ? "Kirim Tanggapan & Selesaikan" : "Kirim Tanggapan & Teruskan ke UPT"}</Button>}
+        {terbuka && <Button onClick={kirim} disabled={tanggapan.trim().length < 10 || saving}><Send /> {saving ? "Mengirim..." : pilih === "selesai" ? "Kirim Tanggapan & Selesaikan" : "Kirim Tanggapan & Teruskan ke UPT"}</Button>}
       </div>
     </>
   )

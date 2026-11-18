@@ -37,7 +37,7 @@ export default function BerandaKepegawaianPage() {
           pegawai_total: s.pegawai.length,
           pegawai_aktif: aktif,
           usulan_menunggu: usulanTunggu,
-          usulan_dikembalikan: dikembalikan.length,
+          usulan_dikembalikan: dikembalikan,
           pengaduan_menunggu: aduan,
           hukuman_aktif: hukuman,
         })

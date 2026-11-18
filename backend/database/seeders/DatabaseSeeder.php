@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             ParameterRemunerasiSeeder::class,
             AkunSeeder::class,
             PegawaiRoleSeeder::class,
+            KepegawaianSeeder::class,
         ]);
     }
 }
