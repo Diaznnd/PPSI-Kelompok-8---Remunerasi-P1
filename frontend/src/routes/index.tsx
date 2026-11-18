@@ -105,6 +105,8 @@ export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/unauthorized", element: <UnauthorizedPage /> },
+  { path: "/pj_unit/*", element: <Navigate to="/pj-unit/dashboard" replace /> },
+  { path: "/upt_remunerasi/*", element: <Navigate to="/upt-remunerasi/dashboard" replace /> },
   {
     path: "/rbac-demo",
     element: (

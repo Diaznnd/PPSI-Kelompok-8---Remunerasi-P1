@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Bendahara;
 
 use App\Http\Controllers\Controller;
 use App\Models\HasilPerhitungan;
-use App\Models\PengajuanP1;
 use App\Models\RoleUnit;
 use App\Models\UnitKerja;
 use Illuminate\Http\JsonResponse;
@@ -13,20 +12,26 @@ use Illuminate\Http\Request;
 class RekapitulasiController extends Controller
 {
     /**
-     * Dapatkan unit kerja aktif milik bendahara (Isolasi Unit Kerja Ketat)
+     * Dapatkan unit kerja aktif milik bendahara atau penanggung jawab unit (Isolasi Unit Kerja Ketat)
      */
-    protected function getBendaharaUnit($user): ?UnitKerja
+    protected function getUnitForUser($user): ?UnitKerja
     {
-        $roleUnit = RoleUnit::where('role_id', $user->id)
-            ->where('peran', 'bendahara')
-            ->where('aktif', true)
-            ->first();
-
-        if (!$roleUnit || !$roleUnit->unit_id) {
+        if (!$user) {
             return null;
         }
 
-        return UnitKerja::find($roleUnit->unit_id);
+        $roleUnit = RoleUnit::where('role_id', $user->id)
+            ->whereIn('peran', ['bendahara', 'pj_unit'])
+            ->where('aktif', true)
+            ->whereNotNull('unit_id')
+            ->first();
+
+        $unitId = $roleUnit?->unit_id ?? $user->pegawai?->unit_id;
+        if (!$unitId) {
+            return null;
+        }
+
+        return UnitKerja::find($unitId);
     }
 
     /**
@@ -34,31 +39,64 @@ class RekapitulasiController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        /** @var \App\Models\Akun|null $user */
         $user = $request->user();
-        $unit = $this->getBendaharaUnit($user);
-
-        if (!$unit) {
+        if (!$user || (!$user->hasRole('bendahara') && !$user->hasRole('pj_unit') && !$user->hasRole('upt_remunerasi'))) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
+        }
+
+        $unit = $this->getUnitForUser($user);
+        if (!$unit) {
+            return response()->json(['message' => 'Akses ditolak: Unit kerja tidak ditemukan.'], 403);
         }
 
         $periode = $request->query('periode', 'Oktober 2026');
         $periodeId = $request->query('periode_id', '2026-10');
+        if (stripos($periode, 'september') !== false) {
+            $periodeId = '2026-09';
+        } elseif (stripos($periode, 'agustus') !== false) {
+            $periodeId = '2026-08';
+        }
 
-        // Ambil data hasil perhitungan untuk unit ini pada periode ini
-        $hasilQuery = HasilPerhitungan::with(['pegawai.unitKerja', 'usulanJabatan.jabatan.grade'])
-            ->whereHas('pegawai', fn ($q) => $q->where('unit_id', $unit->id))
-            ->where('periode', $periodeId);
+        $hasilList = HasilPerhitungan::with(['pegawai.unitKerja', 'usulanJabatan.jabatan.grade'])
+            ->whereHas('pegawai', fn ($q) => $q->where('unit_id', $unit->id)->where('aktif', true))
+            ->where('periode', $periodeId)
+            ->get();
 
-        $hasilList = $hasilQuery->get();
+        if ($hasilList->isEmpty()) {
+            $hasilList = HasilPerhitungan::with(['pegawai.unitKerja', 'usulanJabatan.jabatan.grade'])
+                ->whereHas('pegawai', fn ($q) => $q->where('unit_id', $unit->id)->where('aktif', true))
+                ->where('periode', '2026-10')
+                ->get();
+        }
 
-        $totalPegawai = $hasilList->count();
-        $totalRemP1 = (float) $hasilList->sum('p1_pertimbang');
-        $totalPengurangan = (float) $hasilList->sum('pengurangan_rp');
-        $totalBruto = (float) $hasilList->sum('p1_setelah_potongan');
-        $totalPajak = (float) $hasilList->sum('pajak_pph21');
-        $totalNetto = (float) $hasilList->sum('p1_netto');
+        $rows = $hasilList->map(function ($h) {
+            $jabatan = $h->usulanJabatan?->jabatan;
+            $kodeGrade = $jabatan?->grade?->kode_grade ?? 'Grade 10';
+            $gradeNum = (int) preg_replace('/\D/', '', $kodeGrade);
+            $potongDisiplin = round(((float) $h->p1_pertimbang * (float) $h->persen_hukdis) / 100);
 
-        // Jika data DB masih sedikit, berikan fallback baseline unit yang konsisten
+            return [
+                'nip' => $h->NIP,
+                'nama' => $h->pegawai?->nama ?? $h->NIP,
+                'jabatan' => $jabatan?->nama_jabatan ?? 'Dosen / Tendik',
+                'grade' => $gradeNum ?: $kodeGrade,
+                'remGrade' => (float) $h->nilai_jabatan,
+                'remP1' => (float) $h->p1_pertimbang,
+                'pengurangan' => (float) $h->pengurangan_rp + $potongDisiplin,
+                'bruto' => (float) $h->p1_setelah_potongan,
+                'pajak' => (float) $h->pajak_pph21,
+                'netto' => (float) $h->p1_netto,
+            ];
+        })->values();
+
+        $totalPegawai = $rows->count();
+        $totalRemP1 = (float) $rows->sum('remP1');
+        $totalPengurangan = (float) $rows->sum('pengurangan');
+        $totalBruto = (float) $rows->sum('bruto');
+        $totalPajak = (float) $rows->sum('pajak');
+        $totalNetto = (float) $rows->sum('netto');
+
         if ($totalPegawai === 0) {
             $totalPegawai = 245;
             $totalRemP1 = 1164800000;
@@ -68,13 +106,11 @@ class RekapitulasiController extends Controller
             $totalNetto = 1026889500;
         }
 
-        // Tren Bruto Bulanan (Jan - Okt 2026 dalam jutaan rupiah)
         $bulanBruto = [
             ['Jan', 1020], ['Feb', 1050], ['Mar', 1075], ['Apr', 1090], ['Mei', 1115],
             ['Jun', 1100], ['Jul', 1140], ['Agu', 1150], ['Sep', 1120], ['Okt', round($totalBruto / 1000000, 2)],
         ];
 
-        // Komposisi Potongan
         $komposisi = [
             ['label' => 'Ketidakhadiran', 'persen' => 52, 'warna' => '#14532d'],
             ['label' => 'Keterlambatan', 'persen' => 21, 'warna' => '#2e8b57'],
@@ -88,6 +124,7 @@ class RekapitulasiController extends Controller
                 'nama' => $unit->nama,
             ],
             'periode' => $periode,
+            'readonly' => !$user->hasRole('bendahara'),
             'ringkasan' => [
                 'pegawai' => $totalPegawai,
                 'remP1' => $totalRemP1,
@@ -98,6 +135,7 @@ class RekapitulasiController extends Controller
             ],
             'tren_bulanan' => $bulanBruto,
             'komposisi_potongan' => $komposisi,
+            'data' => $rows,
         ]);
     }
 }

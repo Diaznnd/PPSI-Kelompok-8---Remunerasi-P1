@@ -16,12 +16,14 @@ class PresensiReport extends Model
     protected $fillable = [
         'unit_id',
         'NIP',
+        'nama_file',
         'masa_file',
         'file_hash',
         'status',
         'jumlah_valid',
         'jumlah_gagal',
         'baris_gagal',
+        'durasi',
         'dimpor_at',
         'periode',
     ];

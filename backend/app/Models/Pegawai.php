@@ -21,6 +21,7 @@ class Pegawai extends Model
         'NIP',
         'unit_id',
         'nama',
+        'email',
         'jenis',
         'status_kepegawaian',
         'status_tugas_belajar',
@@ -28,17 +29,20 @@ class Pegawai extends Model
         'tgl_mulai_tubel',
         'tgl_selesai_tubel',
         'pangkat_golongan',
+        'tmt',
         'npwp',
         'nowo',
         'status_skp',
         'no_rekening',
         'aktif',
+        'alasan_nonaktif',
     ];
 
     protected function casts(): array
     {
         return [
             'aktif' => 'boolean',
+            'tmt' => 'date:Y-m-d',
         ];
     }
 
@@ -59,7 +63,10 @@ class Pegawai extends Model
 
     public function usulanJabatanTerakhir(): HasOne
     {
-        return $this->hasOne(UsulanJabatan::class, 'NIP', 'NIP')->latestOfMany();
+        return $this->hasOne(UsulanJabatan::class, 'NIP', 'NIP')
+            ->ofMany(['id' => 'max'], function ($query) {
+                $query->whereIn('status', ['ditetapkan', 'diverifikasi']);
+            });
     }
 
     public function hasilPerhitungan(): HasMany

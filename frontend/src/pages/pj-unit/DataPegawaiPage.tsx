@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { PEGAWAI_UNIT, pjUnit } from "@/data/dummy-pjunit"
+import { PEGAWAI_UNIT, pjUnit, type PegawaiUnit } from "@/data/dummy-pjunit"
+import { pjUnitService } from "@/services/pjUnitService"
 
 const UKURAN = 10
 const unik = <T,>(a: T[]) => [...new Set(a)]
@@ -27,6 +28,8 @@ function Pilih({ label, nilai, ubah, semua, opsi, lebar }: { label: string; nila
 }
 
 export default function DataPegawaiPage() {
+  const [daftarPegawai, setDaftarPegawai] = useState<PegawaiUnit[]>(PEGAWAI_UNIT)
+  const [unitNama, setUnitNama] = useState(pjUnit.unit)
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
   const [jabatan, setJabatan] = useState("semua")
@@ -34,14 +37,21 @@ export default function DataPegawaiPage() {
   const [aktif, setAktif] = useState("semua")
   const [hal, setHal] = useState(1)
 
+  useEffect(() => {
+    pjUnitService.getPegawaiList().then((res) => {
+      if (res?.data?.length) setDaftarPegawai(res.data)
+      if (res?.unit) setUnitNama(res.unit)
+    }).catch(() => {})
+  }, [])
+
   const hasil = useMemo(
     () =>
-      PEGAWAI_UNIT.filter((p) => (p.nama + p.nip).toLowerCase().includes(q.toLowerCase()))
+      daftarPegawai.filter((p) => (p.nama + p.nip).toLowerCase().includes(q.toLowerCase()))
         .filter((p) => status === "semua" || p.status === status)
         .filter((p) => jabatan === "semua" || p.jabatan === jabatan)
         .filter((p) => grade === "semua" || p.grade === Number(grade))
         .filter((p) => aktif === "semua" || (aktif === "aktif") === p.aktif),
-    [q, status, jabatan, grade, aktif]
+    [daftarPegawai, q, status, jabatan, grade, aktif]
   )
   const totalHal = Math.max(1, Math.ceil(hasil.length / UKURAN))
   const halaman = Math.min(hal, totalHal)
@@ -53,14 +63,14 @@ export default function DataPegawaiPage() {
 
   return (
     <>
-      <PageHeading title="Data Pegawai dan Jabatan" desc={pjUnit.unit} />
+      <PageHeading title="Data Pegawai dan Jabatan" desc={unitNama} />
 
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-4">
           {GRADE_KARTU.map((g) => (
             <Panel key={g} className="flex items-center justify-between p-4">
               <span className="text-xs text-muted-foreground">Grade {g}</span>
-              <span className="text-xl font-bold text-primary">{PEGAWAI_UNIT.filter((p) => p.grade === g).length}<span className="ml-1 text-[10px] font-normal text-muted-foreground">pegawai</span></span>
+              <span className="text-xl font-bold text-primary">{daftarPegawai.filter((p) => p.grade === g).length}<span className="ml-1 text-[10px] font-normal text-muted-foreground">pegawai</span></span>
             </Panel>
           ))}
         </div>
@@ -71,9 +81,9 @@ export default function DataPegawaiPage() {
               <p className="text-[11px] text-muted-foreground">Cari NIP atau nama</p>
               <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Ketik NIP atau nama pegawai..." value={q} onChange={(e) => { setQ(e.target.value); setHal(1) }} /></div>
             </div>
-            <Pilih label="Status Kepegawaian" nilai={status} ubah={filter(setStatus)} semua="Semua status" opsi={unik(PEGAWAI_UNIT.map((p) => p.status)).map((s) => [s, s])} lebar="w-40" />
-            <Pilih label="Jabatan" nilai={jabatan} ubah={filter(setJabatan)} semua="Semua jabatan" opsi={unik(PEGAWAI_UNIT.map((p) => p.jabatan)).map((s) => [s, s])} lebar="w-52" />
-            <Pilih label="Grade" nilai={grade} ubah={filter(setGrade)} semua="Semua grade" opsi={unik(PEGAWAI_UNIT.map((p) => p.grade)).sort((a, b) => a - b).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
+            <Pilih label="Status Kepegawaian" nilai={status} ubah={filter(setStatus)} semua="Semua status" opsi={unik(daftarPegawai.map((p) => p.status)).map((s) => [s, s])} lebar="w-40" />
+            <Pilih label="Jabatan" nilai={jabatan} ubah={filter(setJabatan)} semua="Semua jabatan" opsi={unik(daftarPegawai.map((p) => p.jabatan)).map((s) => [s, s])} lebar="w-52" />
+            <Pilih label="Grade" nilai={grade} ubah={filter(setGrade)} semua="Semua grade" opsi={unik(daftarPegawai.map((p) => p.grade)).sort((a, b) => a - b).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
             <Pilih label="Status P1" nilai={aktif} ubah={filter(setAktif)} semua="Semua" opsi={[["aktif", "Aktif"], ["nonaktif", "Tidak Aktif"]]} lebar="w-36" />
           </div>
 

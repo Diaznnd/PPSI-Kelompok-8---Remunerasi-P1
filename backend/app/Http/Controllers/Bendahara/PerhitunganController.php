@@ -118,7 +118,8 @@ class PerhitunganController extends Controller
 
         $periode = $request->input('periode', '2026-10');
 
-        return DB::transaction(function () use ($unit, $periode, $user) {
+        /** @var JsonResponse $response */
+        $response = DB::transaction(function () use ($unit, $periode, $user): JsonResponse {
             // Ambil parameter resmi dari database
             $pir = (float) (ParameterRemunerasi::where('kode', 'PIR')->value('nilai') ?? 3000);
             $persenP1 = (float) (ParameterRemunerasi::where('kode', 'PERSEN_P1')->value('nilai') ?? 40);
@@ -178,9 +179,12 @@ class PerhitunganController extends Controller
                 // P1 Base Pertimbangan
                 $p1Base = round(($p1Gross * $persenStatus) / 100);
 
-                // Ambil data presensi bulanan
-                $presensi = PresensiBulanan::where('NIP', $p->NIP)->first();
-                $hariKerja = $presensi ? (float) $presensi->hari_kerja : 22;
+                // Ambil data presensi bulanan sesuai periode (atau terbaru)
+                $presensi = PresensiBulanan::where('NIP', $p->NIP)
+                    ->whereHas('presensiReport', fn ($q) => $q->where('periode', $periode))
+                    ->latest('id')
+                    ->first() ?? PresensiBulanan::where('NIP', $p->NIP)->latest('id')->first();
+                $hariKerja = $presensi && (float) $presensi->hari_kerja > 0 ? (float) $presensi->hari_kerja : 22;
 
                 $cutiSakit = $presensi ? (float) $presensi->cuti_sakit : 0;
                 $cutiBersalin12 = $presensi ? (float) $presensi->cuti_bersalin_1_2 : 0;
@@ -188,7 +192,7 @@ class PerhitunganController extends Controller
                 $cutiBersalin4 = $presensi ? (float) $presensi->cuti_bersalin_4_plus : 0;
                 $cutiPenting = $presensi ? (float) $presensi->cuti_alasan_penting : 0;
                 $cutiBesar = $presensi ? (float) $presensi->cuti_besar : 0;
-                $alfa = $presensi ? (float) $presensi->alfa : 0;
+                $alfa = $presensi ? (float) ($presensi->alfa > 0 ? $presensi->alfa : $presensi->tidak_hadir) : 0;
 
                 // TL & PSW (s1..s6, pw1..pw6)
                 $tlCount = [
@@ -229,15 +233,20 @@ class PerhitunganController extends Controller
                 // Potongan Hukuman Disiplin
                 $hukdis = HukumanDisiplin::where('NIP', $p->NIP)
                     ->where(function ($q) {
+                        $q->whereNull('tanggal_mulai')
+                            ->orWhere('tanggal_mulai', '<=', now());
+                    })
+                    ->where(function ($q) {
                         $q->whereNull('tanggal_berakhir')
                             ->orWhere('tanggal_berakhir', '>=', now());
                     })
                     ->first();
                 $persenHukdis = 0;
                 if ($hukdis) {
-                    if ($hukdis->tingkat === 'sedang') {
+                    $tingkatLower = strtolower($hukdis->tingkat ?? '');
+                    if ($tingkatLower === 'sedang') {
                         $persenHukdis = 25;
-                    } elseif ($hukdis->tingkat === 'berat') {
+                    } elseif ($tingkatLower === 'berat') {
                         $persenHukdis = 100;
                     }
                 }
@@ -317,6 +326,8 @@ class PerhitunganController extends Controller
                 ],
             ]);
         });
+
+        return $response;
     }
 
     /**

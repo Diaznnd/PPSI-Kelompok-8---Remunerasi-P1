@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { bendaharaService } from "@/services/bendaharaService"
+import { pjUnitService } from "@/services/pjUnitService"
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
@@ -28,7 +29,7 @@ export default function RekapitulasiPage() {
     ["Jun", 1100], ["Jul", 1140], ["Agu", 1150], ["Sep", 1120], ["Okt", 1128.45],
   ])
   const [rows, setRows] = useState<any[]>([])
-  const [komposisi] = useState([
+  const [komposisi, setKomposisi] = useState([
     { label: "Keterlambatan", persen: 35, warna: "#ef4444" },
     { label: "PSW", persen: 28, warna: "#f59e0b" },
     { label: "Sakit", persen: 20, warna: "#3b82f6" },
@@ -45,9 +46,12 @@ export default function RekapitulasiPage() {
     const fetchRekapitulasi = async () => {
       try {
         setLoading(true)
-        const res = await bendaharaService.getRekapitulasi(periode)
+        const res = akun?.peran === "pj_unit"
+          ? await pjUnitService.getRekapitulasi(periode)
+          : await bendaharaService.getRekapitulasi(periode)
         if (res?.ringkasan) setRingkasan(res.ringkasan)
         if (res?.tren_bulanan) setTrenBulanan(res.tren_bulanan)
+        if (res?.komposisi_potongan) setKomposisi(res.komposisi_potongan)
         if (res?.data) setRows(res.data)
       } catch (error) {
         console.error("Error fetching rekapitulasi:", error)
@@ -57,11 +61,55 @@ export default function RekapitulasiPage() {
       }
     }
     fetchRekapitulasi()
-  }, [periode])
+  }, [periode, akun?.peran])
 
-  const dummy = () => toast.info("Ekspor belum tersambung ke backend (dummy).")
-  const maks = Math.max(...trenBulanan.map(([, v]) => v))
-  const min = 900
+  const exportCsv = () => {
+    if (rows.length === 0) {
+      toast.error("Tidak ada data rekapitulasi untuk diekspor.")
+      return
+    }
+    const headers = [
+      "NIP",
+      "Nama Pegawai",
+      "Jabatan",
+      "Grade",
+      "Remunerasi Grade",
+      "Remunerasi P1",
+      "Pengurangan Kehadiran",
+      "Jumlah Bruto",
+      "Pajak",
+      "Jumlah Netto",
+    ]
+    const csvRows = [
+      headers.join(","),
+      ...rows.map((item: any) =>
+        [
+          `"${item.nip || ""}"`,
+          `"${item.nama || ""}"`,
+          `"${item.jabatan || ""}"`,
+          `"${item.grade || ""}"`,
+          item.remGrade || 0,
+          item.remP1 || 0,
+          item.pengurangan || 0,
+          item.bruto || 0,
+          item.pajak || 0,
+          item.netto || 0,
+        ].join(",")
+      ),
+    ]
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `Rekapitulasi_P1_${periode.replace(/\s+/g, "_")}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Rekapitulasi ${periode} berhasil diekspor ke CSV.`)
+  }
+  const nilaiTren = trenBulanan.map(([, v]) => v)
+  const maks = Math.max(...nilaiTren, 1)
+  const min = Math.max(0, Math.min(...nilaiTren, 0) * 0.8)
+  const rentang = Math.max(0.01, maks - min)
 
   const unitNama = akun?.unit_nama || "Unit Kerja"
 
@@ -87,8 +135,8 @@ export default function RekapitulasiPage() {
         <>
       <PageHeading
         title="Rekapitulasi P1"
-        desc={`Analisis rekap P1 ${unitNama}.`}
-        action={<div className="flex gap-2"><Button variant="outline" onClick={dummy}>Ekspor Rekap Format Excel</Button><Button variant="outline" onClick={dummy}>Ekspor CSV</Button><Button onClick={dummy}>Ekspor Excel</Button></div>}
+        desc={akun?.peran === "pj_unit" ? `Analisis rekap P1 ${unitNama} (Mode Hanya Baca).` : `Analisis rekap P1 ${unitNama}.`}
+        action={<div className="flex gap-2"><Button variant="outline" onClick={exportCsv}>Ekspor CSV</Button></div>}
       />
 
       <div className="space-y-6">
@@ -160,7 +208,7 @@ export default function RekapitulasiPage() {
             <div className="mt-4 flex h-44 items-end gap-3 border-t pt-4">
               {trenBulanan.map(([b, v]) => (
                 <div key={b} className="flex flex-1 flex-col items-center gap-1" title={`${b}: Rp ${v.toLocaleString("id-ID")} juta`}>
-                  <div className="w-full rounded-t bg-gradient-to-b from-primary/80 to-primary" style={{ height: `${Math.max(8, ((v - min) / (maks - min)) * 100)}%` }} />
+                  <div className="w-full rounded-t bg-gradient-to-b from-primary/80 to-primary" style={{ height: `${Math.max(8, ((v - min) / rentang) * 100)}%` }} />
                   <span className="text-[10px] text-muted-foreground">{b}</span>
                 </div>
               ))}
@@ -173,7 +221,7 @@ export default function RekapitulasiPage() {
             <div className="mt-4 flex items-center gap-5">
               <div className="relative size-28 shrink-0 rounded-full" style={{ background: `conic-gradient(${konik})` }}>
                 <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-card text-center">
-                  <span className="text-xs font-bold">Rp 36,35 Jt</span>
+                  <span className="text-[10px] font-bold leading-tight">{rupiah(ringkasan.pengurangan || 0)}</span>
                   <span className="text-[8px] text-muted-foreground">Pengurangan Kehadiran</span>
                 </div>
               </div>

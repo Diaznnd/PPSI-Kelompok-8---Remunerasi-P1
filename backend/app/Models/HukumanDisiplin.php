@@ -16,8 +16,11 @@ class HukumanDisiplin extends Model
         'NIP',
         'akun_id',
         'tingkat',
+        'jenis',
+        'nomor_sk',
         'tanggal_mulai',
         'tanggal_berakhir',
+        'uraian',
     ];
 
     protected function casts(): array

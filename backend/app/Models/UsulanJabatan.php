@@ -14,15 +14,20 @@ class UsulanJabatan extends Model
 
     protected $fillable = [
         'dokumen_id',
+        'dokumen_spmt_id',
         'akun_id',
         'NIP',
         'unit_id',
+        'jabatan_lama_id',
         'jabatan_id',
         'nomor_urutan',
         'tanggal_berlaku',
         'status',
+        'alasan',
         'catatan_verifikator',
+        'catatan_perbaikan',
         'jenis_perubahan',
+        'jejak',
         'diajukan_at',
     ];
 
@@ -31,12 +36,23 @@ class UsulanJabatan extends Model
         return [
             'tanggal_berlaku' => 'date',
             'diajukan_at' => 'datetime',
+            'jejak' => 'array',
         ];
     }
 
     public function dokumen(): BelongsTo
     {
         return $this->belongsTo(DokumenPendukung::class, 'dokumen_id');
+    }
+
+    public function dokumenSpmt(): BelongsTo
+    {
+        return $this->belongsTo(DokumenPendukung::class, 'dokumen_spmt_id');
+    }
+
+    public function jabatanLama(): BelongsTo
+    {
+        return $this->belongsTo(Jabatan::class, 'jabatan_lama_id');
     }
 
     public function akun(): BelongsTo

@@ -22,7 +22,7 @@ class PengaduanController extends Controller
 
         $pengaduans = Pengaduan::where('NIP', $nip)
             ->with(['tanggapan'])
-            ->orderBy('id', 'desc')
+            ->orderByDesc('id')
             ->get();
 
         $data = $pengaduans->map(function ($p) {
@@ -34,9 +34,12 @@ class PengaduanController extends Controller
                 default => 2,
             };
 
+            $nomor = 'UA-FTI-2026-00' . str_pad((string) $p->id, 2, '0', STR_PAD_LEFT);
+            $tglIso = ($p->diajukan_at ?: $p->created_at ?: now())->toIso8601String();
+
             return [
                 'id' => $p->id,
-                'nomor' => 'UA-FTI-2026-00' . str_pad((string) $p->id, 2, '0', STR_PAD_LEFT),
+                'nomor' => $nomor,
                 'tanggal' => $p->diajukan_at ? Carbon::parse($p->diajukan_at)->translatedFormat('d F Y') : Carbon::now()->translatedFormat('d F Y'),
                 'kategori' => $p->kategori,
                 'judul' => $p->judul,
@@ -45,6 +48,15 @@ class PengaduanController extends Controller
                 'langkahSelesai' => $langkahSelesai,
                 'uraian' => $p->uraian,
                 'lampiran' => $p->lampiran_path ? url('/storage/' . $p->lampiran_path) : null,
+                // PascalCase keys (digunakan oleh PengaduanListPage.tsx & PengaduanDetailPage.tsx)
+                'IDPengaduan' => $p->id,
+                'NomorPengaduan' => $nomor,
+                'TanggalPengaduan' => $tglIso,
+                'Kategori' => $p->kategori,
+                'Periode' => $p->periode ?: 'Oktober 2026',
+                'StatusPengaduan' => $p->status,
+                'Isi' => $p->uraian,
+                'FileLampiran' => $p->lampiran_path ? basename($p->lampiran_path) : null,
             ];
         });
 
@@ -62,7 +74,7 @@ class PengaduanController extends Controller
         $request->validate([
             'kategori' => 'required|string|max:100',
             'periode' => 'required|string|max:50',
-            'judul' => 'required|string|max:255',
+            'judul' => 'nullable|string|max:255',
             'uraian' => 'required|string|min:10',
             'berkas' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
@@ -70,7 +82,7 @@ class PengaduanController extends Controller
         $akun = $request->user();
         $nip = $akun->NIP ?? '198803122015042001';
         $pegawai = $akun->pegawai ?? Pegawai::where('NIP', $nip)->first();
-        $unitId = $pegawai?->usulanJabatanTerakhir?->unit_id ?? 1;
+        $unitId = $pegawai?->unit_id ?? $pegawai?->usulanJabatanTerakhir?->unit_id ?? 1;
 
         $lampiranPath = null;
         if ($request->hasFile('berkas')) {
@@ -83,7 +95,7 @@ class PengaduanController extends Controller
             'unit_id' => $unitId,
             'kategori' => $request->kategori,
             'periode' => $request->periode,
-            'judul' => $request->judul,
+            'judul' => $request->judul ?: $request->kategori,
             'uraian' => $request->uraian,
             'lampiran_path' => $lampiranPath,
             'tingkat' => 'unit',
@@ -91,7 +103,6 @@ class PengaduanController extends Controller
             'diajukan_at' => Carbon::now(),
         ]);
 
-        // Simpan pesan awal dari pegawai
         TanggapanPengaduan::create([
             'pengaduan_id' => $pengaduan->id,
             'NIP' => $nip,
@@ -110,6 +121,9 @@ class PengaduanController extends Controller
                 'id' => $pengaduan->id,
                 'nomor' => $nomor,
                 'status' => 'Diajukan',
+                'IDPengaduan' => $pengaduan->id,
+                'NomorPengaduan' => $nomor,
+                'StatusPengaduan' => 'Diajukan',
             ],
         ], 201);
     }
@@ -122,8 +136,7 @@ class PengaduanController extends Controller
         $akun = $request->user();
         $nip = $akun->NIP ?? '198803122015042001';
 
-        $pengaduan = Pengaduan::where('NIP', $nip)
-            ->where('id', $id)
+        $pengaduan = Pengaduan::where('id', $id)
             ->with(['tanggapan.pegawai'])
             ->first();
 
@@ -143,39 +156,55 @@ class PengaduanController extends Controller
         };
 
         $nomor = 'UA-FTI-2026-00' . str_pad((string) $pengaduan->id, 2, '0', STR_PAD_LEFT);
+        $tglDiajukanIso = ($pengaduan->diajukan_at ?: $pengaduan->created_at ?: now())->toIso8601String();
 
-        $linimasa = [
+        $riwayatStatus = [
             [
-                'label' => 'Diajukan',
-                'waktu' => $pengaduan->diajukan_at ? Carbon::parse($pengaduan->diajukan_at)->translatedFormat('d F Y, H.i') . ' WIB' : '-',
-                'oleh' => $pengaduan->pegawai?->nama ?? 'Anda',
-            ],
-            [
-                'label' => 'Ditindaklanjuti Bidang Kepegawaian',
-                'waktu' => $langkahSelesai >= 2 ? Carbon::parse($pengaduan->diajukan_at)->addHours(5)->translatedFormat('d F Y, H.i') . ' WIB' : 'Menunggu antrean',
-                'oleh' => 'Verifikator Fakultas Teknologi Informasi',
-            ],
-            [
-                'label' => 'Diteruskan ke UPT Remunerasi',
-                'waktu' => $langkahSelesai >= 3 ? Carbon::parse($pengaduan->diajukan_at)->addDays(1)->translatedFormat('d F Y, H.i') . ' WIB' : 'Menunggu proses',
-                'oleh' => 'Petugas UPT Remunerasi',
-            ],
-            [
-                'label' => 'Selesai',
-                'waktu' => $langkahSelesai >= 4 ? ($pengaduan->diselesaikan_at ? Carbon::parse($pengaduan->diselesaikan_at)->translatedFormat('d F Y, H.i') . ' WIB' : 'Selesai') : 'Menunggu penetapan',
-                'oleh' => 'UPT Remunerasi',
+                'IDRiwayat' => 1,
+                'Status' => 'Diajukan',
+                'TanggalStatus' => $tglDiajukanIso,
+                'Oleh' => $pengaduan->pegawai?->nama ?? 'Pegawai',
             ],
         ];
+        if ($langkahSelesai >= 2) {
+            $riwayatStatus[] = [
+                'IDRiwayat' => 2,
+                'Status' => 'Ditindaklanjuti Bidang Kepegawaian',
+                'TanggalStatus' => Carbon::parse($tglDiajukanIso)->addHours(2)->toIso8601String(),
+                'Oleh' => 'Bidang Kepegawaian Unit',
+            ];
+        }
+        if ($langkahSelesai >= 3) {
+            $riwayatStatus[] = [
+                'IDRiwayat' => 3,
+                'Status' => 'Diteruskan ke UPT Remunerasi',
+                'TanggalStatus' => Carbon::parse($tglDiajukanIso)->addHours(5)->toIso8601String(),
+                'Oleh' => 'Bidang Kepegawaian Unit',
+            ];
+        }
+        if ($langkahSelesai >= 4) {
+            $riwayatStatus[] = [
+                'IDRiwayat' => 4,
+                'Status' => 'Selesai',
+                'TanggalStatus' => Carbon::parse($tglDiajukanIso)->addDay()->toIso8601String(),
+                'Oleh' => 'Bidang Kepegawaian / UPT Remunerasi',
+            ];
+        }
 
-        $pesan = $pengaduan->tanggapan->map(function ($t) use ($nip) {
+        $tanggapanList = $pengaduan->tanggapan->map(function ($t) use ($nip) {
             $isOwn = $t->NIP === $nip;
             return [
                 'id' => $t->id,
-                'dari' => $isOwn ? 'Anda' : ($t->pegawai?->nama ?? 'Verifikator Kepegawaian'),
+                'dari' => $isOwn ? 'Anda' : ($t->pegawai?->nama ?? 'Bidang Kepegawaian'),
                 'waktu' => Carbon::parse($t->dikirim_at ?: $t->created_at)->translatedFormat('d F Y, H.i') . ' WIB',
                 'teks' => $t->isi,
                 'lampiran' => $t->lampiran_path ? basename($t->lampiran_path) : null,
                 'lampiran_url' => $t->lampiran_path ? url('/storage/' . $t->lampiran_path) : null,
+                // PascalCase keys
+                'DariRole' => $isOwn ? 'Anda' : ($t->pegawai?->nama ?? 'Bidang Kepegawaian'),
+                'TanggalTanggapan' => ($t->dikirim_at ?: $t->created_at ?: now())->toIso8601String(),
+                'Isi' => $t->isi,
+                'FileLampiran' => $t->lampiran_path ? basename($t->lampiran_path) : null,
             ];
         });
 
@@ -192,8 +221,18 @@ class PengaduanController extends Controller
                 'status' => $pengaduan->status,
                 'langkahSelesai' => $langkahSelesai,
                 'lampiran' => $pengaduan->lampiran_path ? url('/storage/' . $pengaduan->lampiran_path) : null,
-                'linimasa' => $linimasa,
-                'percakapan' => $pesan,
+                'percakapan' => $tanggapanList,
+                'tanggapan' => $tanggapanList,
+                'riwayat_status' => $riwayatStatus,
+                // PascalCase keys
+                'IDPengaduan' => $pengaduan->id,
+                'NomorPengaduan' => $nomor,
+                'TanggalPengaduan' => $tglDiajukanIso,
+                'Kategori' => $pengaduan->kategori,
+                'Periode' => $pengaduan->periode ?: 'Oktober 2026',
+                'StatusPengaduan' => $pengaduan->status,
+                'Isi' => $pengaduan->uraian,
+                'FileLampiran' => $pengaduan->lampiran_path ? basename($pengaduan->lampiran_path) : null,
             ],
         ]);
     }
@@ -211,7 +250,7 @@ class PengaduanController extends Controller
         $akun = $request->user();
         $nip = $akun->NIP ?? '198803122015042001';
 
-        $pengaduan = Pengaduan::where('NIP', $nip)->where('id', $id)->first();
+        $pengaduan = Pengaduan::where('id', $id)->first();
         if (!$pengaduan) {
             return response()->json([
                 'status' => 'error',

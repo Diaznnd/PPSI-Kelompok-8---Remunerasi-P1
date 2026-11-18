@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Download, FileText, Info, XCircle } from "lucide-react"
 import { toast } from "sonner"
@@ -11,9 +11,10 @@ import { Stepper } from "@/components/bendahara/Stepper"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { warnaUsulan } from "@/components/kepegawaian/warna"
 import { ajukanUlang, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
 
-type Dok = { judul: string; berkas: string; ukuran: string }
+type Dok = { judul: string; berkas: string; ukuran: string; url?: string }
 
 function PratinjauDokumen({ dok, nama, onClose }: { dok: Dok; nama: string; onClose: () => void }) {
   const spmt = dok.judul === "SPMT"
@@ -34,15 +35,35 @@ function PratinjauDokumen({ dok, nama, onClose }: { dok: Dok; nama: string; onCl
             <p className="mt-3 text-right font-bold">Rektor Universitas Andalas</p>
           </div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button><Button onClick={() => toast.info("Unduh belum tersambung ke backend (dummy).")}><Download /> Unduh PDF</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button><Button onClick={() => { if (dok.url) window.open(dok.url, "_blank"); else toast.info("Unduh belum tersambung ke backend (dummy).") }}><Download /> Unduh PDF</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
-function AjukanUlangDialog({ id, onClose }: { id: string; onClose: () => void }) {
+function AjukanUlangDialog({ id, onClose, onSuccess }: { id: string; onClose: () => void; onSuccess?: () => void }) {
   const [mulai, setMulai] = useState("")
   const [catatan, setCatatan] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function kirimUlang() {
+    setSaving(true)
+    try {
+      await kepegawaianService.updateUsulan(id, {
+        tanggal_berlaku: mulai || undefined,
+        catatan: catatan.trim() || undefined,
+      })
+    } catch {
+      // fallback
+    } finally {
+      ajukanUlang(id, mulai, catatan.trim())
+      toast.success("Usulan diajukan ulang ke Verifikator.")
+      setSaving(false)
+      onSuccess?.()
+      onClose()
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md!">
@@ -51,7 +72,7 @@ function AjukanUlangDialog({ id, onClose }: { id: string; onClose: () => void })
           <Bidang label="Tanggal mulai berlaku (sesuai SPMT)" hint="Kosongkan bila tanggal pada usulan sudah benar."><Input type="date" value={mulai} onChange={(e) => setMulai(e.target.value)} /></Bidang>
           <Bidang label="Catatan perbaikan"><AreaTeks rows={3} value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Jelaskan perbaikan yang dilakukan..." /></Bidang>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Batal</Button><Button onClick={() => { ajukanUlang(id, mulai, catatan.trim()); toast.success("Usulan diajukan ulang ke Verifikator."); onClose() }}>Ajukan Ulang</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button><Button onClick={kirimUlang} disabled={saving}>{saving ? "Mengirim..." : "Ajukan Ulang"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -60,15 +81,50 @@ function AjukanUlangDialog({ id, onClose }: { id: string; onClose: () => void })
 export default function DetailUsulanPage() {
   const { id } = useParams()
   const { usulan, pegawai } = useKepeg()
-  const u = usulan.find((x) => x.id === id)
+  const [apiUsulan, setApiUsulan] = useState<any | null>(null)
   const [dok, setDok] = useState<Dok | null>(null)
   const [ulang, setUlang] = useState(false)
+
+  const fetchDetail = async () => {
+    if (!id) return
+    try {
+      const res = await kepegawaianService.getUsulanDetail(id)
+      if (res) {
+        setApiUsulan({
+          id: res.kode_usulan || res.id,
+          rawId: res.id,
+          nip: res.NIP || res.nip,
+          nama: res.nama || res.nama_pegawai,
+          lama: res.lama || { jabatan: res.jabatan_lama?.nama, grade: res.jabatan_lama?.grade_num || res.jabatan_lama?.grade },
+          baru: res.baru || { jabatan: res.jabatan_baru?.nama, grade: res.jabatan_baru?.grade_num || res.jabatan_baru?.grade },
+          jenis: res.jenis || res.jenis_perubahan,
+          mulai: res.mulai || res.tanggal_berlaku,
+          alasan: res.alasan || "-",
+          status: res.status_label || (res.status === "dikembalikan" ? "Dikembalikan" : res.status === "disetujui_verifikator" ? "Disetujui Verifikator" : res.status === "ditetapkan" ? "Ditetapkan" : "Diajukan"),
+          sk: res.sk || res.dokumen?.nama_file || "SK.pdf",
+          spmt: res.spmt || res.dokumen_spmt?.nama_file || "SPMT.pdf",
+          skUrl: res.dokumen?.url,
+          spmtUrl: res.dokumen_spmt?.url,
+          catatanKembali: res.catatan_verifikator || res.catatanKembali,
+          jejak: res.jejak || [],
+        })
+      }
+    } catch {
+      // fallback to local store
+    }
+  }
+
+  useEffect(() => {
+    fetchDetail()
+  }, [id])
+
+  const u = apiUsulan || usulan.find((x) => String(x.id) === String(id))
 
   if (!u) {
     return <Panel><p className="text-sm">Usulan tidak ditemukan.</p><Button asChild variant="outline" className="mt-4"><Link to="/kepegawaian/usulan">Kembali</Link></Button></Panel>
   }
   const done = u.status === "Diajukan" || u.status === "Dikembalikan" ? 1 : u.status === "Disetujui Verifikator" ? 2 : 4
-  const jenisDok: Dok[] = [{ judul: "SK jabatan/grade", berkas: u.sk, ukuran: "PDF • 1,2 MB" }, { judul: "SPMT", berkas: u.spmt, ukuran: "PDF • 832 KB" }]
+  const jenisDok: Dok[] = [{ judul: "SK jabatan/grade", berkas: u.sk, ukuran: "PDF • maks 5 MB", url: u.skUrl }, { judul: "SPMT", berkas: u.spmt, ukuran: "PDF • maks 5 MB", url: u.spmtUrl }]
   const peg = pegawai.find((p) => p.nip === u.nip)
 
   return (
@@ -148,7 +204,7 @@ export default function DetailUsulanPage() {
       </div>
 
       {dok && <PratinjauDokumen dok={dok} nama={u.nama} onClose={() => setDok(null)} />}
-      {ulang && <AjukanUlangDialog id={u.id} onClose={() => setUlang(false)} />}
+      {ulang && <AjukanUlangDialog id={String(u.rawId || u.id)} onClose={() => setUlang(false)} onSuccess={fetchDetail} />}
     </>
   )
 }

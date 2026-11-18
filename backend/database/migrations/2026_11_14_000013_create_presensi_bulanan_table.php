@@ -15,8 +15,11 @@ return new class extends Migration
             $table->foreign('NIP')->references('NIP')->on('pegawai')->cascadeOnDelete();
 
             $table->decimal('hari_kerja', 5, 1)->default(0);
+            $table->decimal('hadir', 5, 1)->default(0);
+            $table->decimal('tidak_hadir', 5, 1)->default(0);
+            $table->decimal('cuti_izin', 5, 1)->default(0);
 
-            // Sakit (s1–s6 hari)
+            // Sakit / Terlambat (s1–s6 hari)
             $table->decimal('s1', 5, 1)->default(0);
             $table->decimal('s2', 5, 1)->default(0);
             $table->decimal('s3', 5, 1)->default(0);
@@ -47,6 +50,7 @@ return new class extends Migration
             $table->decimal('alfa', 5, 1)->default(0); // Tanpa Keterangan
 
             $table->boolean('dikoreksi')->default(false);
+            $table->text('alasan_koreksi')->nullable();
             $table->timestamps();
         });
     }
