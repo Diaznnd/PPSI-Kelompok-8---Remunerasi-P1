@@ -16,8 +16,11 @@ class DokumenPendukung extends Model
         'akun_id',
         'nomor_dokumen',
         'tanggal_dokumen',
+        'nama_file',
         'file_path',
         'jenis',
+        'jenis_dokumen',
+        'ukuran_kb',
         'diunggah_at',
     ];
 

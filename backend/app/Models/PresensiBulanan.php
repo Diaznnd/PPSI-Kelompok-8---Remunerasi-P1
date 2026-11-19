@@ -16,6 +16,9 @@ class PresensiBulanan extends Model
         'presensi_report_id',
         'NIP',
         'hari_kerja',
+        'hadir',
+        'tidak_hadir',
+        'cuti_izin',
         's1', 's2', 's3', 's4', 's5', 's6',
         'pw1', 'pw2', 'pw3', 'pw4', 'pw5', 'pw6',
         'cuti_sakit',
@@ -29,6 +32,7 @@ class PresensiBulanan extends Model
         'tugas_kedinasan',
         'alfa',
         'dikoreksi',
+        'alasan_koreksi',
     ];
 
     protected function casts(): array
@@ -36,6 +40,9 @@ class PresensiBulanan extends Model
         return [
             'dikoreksi' => 'boolean',
             'hari_kerja' => 'decimal:1',
+            'hadir' => 'decimal:1',
+            'tidak_hadir' => 'decimal:1',
+            'cuti_izin' => 'decimal:1',
             's1' => 'decimal:1', 's2' => 'decimal:1', 's3' => 'decimal:1',
             's4' => 'decimal:1', 's5' => 'decimal:1', 's6' => 'decimal:1',
             'pw1' => 'decimal:1', 'pw2' => 'decimal:1', 'pw3' => 'decimal:1',

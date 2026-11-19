@@ -14,8 +14,11 @@ return new class extends Migration
             $table->foreign('NIP')->references('NIP')->on('pegawai')->cascadeOnDelete();
             $table->foreignId('akun_id')->nullable()->constrained('akun')->nullOnDelete();
             $table->string('tingkat')->nullable(); // ringan, sedang, berat
+            $table->string('jenis')->nullable();
+            $table->string('nomor_sk')->nullable();
             $table->date('tanggal_mulai')->nullable();
             $table->date('tanggal_berakhir')->nullable();
+            $table->text('uraian')->nullable();
             $table->timestamps();
         });
     }

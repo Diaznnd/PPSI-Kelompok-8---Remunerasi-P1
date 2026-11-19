@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ArrowLeft, Info, Send } from "lucide-react"
 import { toast } from "sonner"
@@ -10,15 +10,17 @@ import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { GRADE_PARAM, PERSEN_P1 } from "@/data/dummy-bendahara"
 import { JABATAN_MASTER, JENIS_USULAN } from "@/data/dummy-kepegawaian"
 import { tambahUsulan, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 import { rupiah } from "@/lib/format"
 
 const GRADE = GRADE_PARAM.map(([l, v]) => ({ grade: Number(l.replace("Grade ", "")), rem: v }))
 const p1Dasar = (grade: number) => { const g = GRADE.find((x) => x.grade === grade); return g ? Math.round((g.rem * PERSEN_P1) / 100) : 0 }
-const cekPdf = (f: File) => (f.type !== "application/pdf" ? "Berkas harus berformat PDF." : f.size > 5 * 1024 * 1024 ? "Ukuran berkas maksimal 5 MB." : null)
+const cekPdf = (f: File) => (f.type !== "application/pdf" && !f.name.toLowerCase().endsWith(".pdf") ? "Berkas harus berformat PDF." : f.size > 5 * 1024 * 1024 ? "Ukuran berkas maksimal 5 MB." : null)
 
 export default function BuatUsulanPage() {
   const navigate = useNavigate()
-  const { pegawai } = useKepeg()
+  const { pegawai: pegawaiDummy } = useKepeg()
+  const [pegawai, setPegawai] = useState<any[]>(pegawaiDummy)
   const [nip, setNip] = useState("")
   const [jenis, setJenis] = useState<string>(JENIS_USULAN[0])
   const [mulai, setMulai] = useState("")
@@ -27,16 +29,59 @@ export default function BuatUsulanPage() {
   const [alasan, setAlasan] = useState("")
   const [sk, setSk] = useState<string | null>(null)
   const [spmt, setSpmt] = useState<string | null>(null)
+  const [skFile, setSkFile] = useState<File | undefined>(undefined)
+  const [spmtFile, setSpmtFile] = useState<File | undefined>(undefined)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    kepegawaianService.getPegawaiList().then((res) => {
+      if (res?.data) {
+        setPegawai(res.data.map((p: any) => ({
+          nip: p.NIP || p.nip,
+          nama: p.nama,
+          jabatan: p.jabatan?.nama || p.jabatan_nama || "",
+          grade: p.jabatan?.grade_nama || p.grade || 0,
+          aktif: p.aktif,
+        })))
+      }
+    }).catch(() => {})
+  }, [])
 
   const p = pegawai.find((x) => x.nip === nip)
   const lamaTeks = p ? (p.jabatan ? `${p.jabatan} • Grade ${p.grade}` : "Belum ada jabatan/grade") : "-"
   const valid = !!p && !!mulai && !!jabatan && !!grade && alasan.trim().length >= 10 && !!sk && !!spmt
 
-  function kirim() {
+  async function kirim() {
     if (!valid || !sk || !spmt) return
-    const id = tambahUsulan({ nip, jenis, mulaiIso: mulai, jabatanBaru: jabatan, gradeBaru: Number(grade), alasan: alasan.trim(), sk, spmt })
-    toast.success(`Usulan ${id} diajukan ke Verifikator.`)
-    navigate("/kepegawaian/usulan")
+    setSaving(true)
+    try {
+      const res = await kepegawaianService.createUsulan({
+        NIP: nip,
+        jabatan_baru: jabatan,
+        grade_baru: Number(grade),
+        jenis_perubahan: jenis,
+        tanggal_berlaku: mulai,
+        alasan: alasan.trim(),
+        dokumen_sk: skFile,
+        dokumen_spmt: spmtFile,
+        sk,
+        spmt,
+      })
+      tambahUsulan({ nip, jenis, mulaiIso: mulai, jabatanBaru: jabatan, gradeBaru: Number(grade), alasan: alasan.trim(), sk, spmt })
+      toast.success(res?.message || `Usulan ${res?.usulan?.kode_usulan || ""} diajukan ke Verifikator.`)
+      navigate("/kepegawaian/usulan")
+    } catch (err: any) {
+      const msg = err?.response?.data?.message
+      if (msg) {
+        toast.error(msg)
+      } else {
+        const id = tambahUsulan({ nip, jenis, mulaiIso: mulai, jabatanBaru: jabatan, gradeBaru: Number(grade), alasan: alasan.trim(), sk, spmt })
+        toast.success(`Usulan ${id} diajukan ke Verifikator (mode lokal).`)
+        navigate("/kepegawaian/usulan")
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -87,8 +132,8 @@ export default function BuatUsulanPage() {
           <Panel className="space-y-4">
             <div><h2 className="text-sm font-semibold">3. Dokumen pendukung</h2><p className="text-[11px] text-muted-foreground">Wajib PDF, maksimal 5 MB per berkas. Berkas lain akan ditolak.</p></div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Bidang label="SK jabatan/grade"><Dropzone nama={sk} onFile={(f) => setSk(f.name)} onHapus={() => setSk(null)} accept=".pdf" cek={cekPdf} petunjuk="PDF • maks. 5 MB" contoh={() => setSk("SK_contoh.pdf")} /></Bidang>
-              <Bidang label="SPMT (Surat Pernyataan Melaksanakan Tugas)"><Dropzone nama={spmt} onFile={(f) => setSpmt(f.name)} onHapus={() => setSpmt(null)} accept=".pdf" cek={cekPdf} petunjuk="PDF • maks. 5 MB" contoh={() => setSpmt("SPMT_contoh.pdf")} /></Bidang>
+              <Bidang label="SK jabatan/grade"><Dropzone nama={sk} onFile={(f) => { setSk(f.name); setSkFile(f) }} onHapus={() => { setSk(null); setSkFile(undefined) }} accept=".pdf" cek={cekPdf} petunjuk="PDF • maks. 5 MB" contoh={() => setSk("SK_contoh.pdf")} /></Bidang>
+              <Bidang label="SPMT (Surat Pernyataan Melaksanakan Tugas)"><Dropzone nama={spmt} onFile={(f) => { setSpmt(f.name); setSpmtFile(f) }} onHapus={() => { setSpmt(null); setSpmtFile(undefined) }} accept=".pdf" cek={cekPdf} petunjuk="PDF • maks. 5 MB" contoh={() => setSpmt("SPMT_contoh.pdf")} /></Bidang>
             </div>
           </Panel>
         </div>
@@ -104,7 +149,7 @@ export default function BuatUsulanPage() {
 
       <div className="sticky bottom-0 -mx-4 flex justify-between border-t bg-card px-4 py-3 md:-mx-8 md:px-8">
         <Button asChild variant="outline"><Link to="/kepegawaian/usulan">Batal</Link></Button>
-        <Button onClick={kirim} disabled={!valid}><Send /> Ajukan ke Verifikator</Button>
+        <Button onClick={kirim} disabled={!valid || saving}><Send /> {saving ? "Mengajukan..." : "Ajukan ke Verifikator"}</Button>
       </div>
     </>
   )

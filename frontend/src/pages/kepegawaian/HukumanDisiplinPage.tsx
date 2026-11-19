@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { CalendarClock, CalendarX2, Gavel, Info, Plus, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -10,13 +10,13 @@ import { AreaTeks, Avatar, Bidang } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { JENIS_HUKUMAN, TINGKAT_HUKUMAN, hariInklusif, progresHukuman, statusHukuman, tglID, type Hukuman, type StatusHukuman, type TingkatHukuman } from "@/data/dummy-kepegawaian"
 import { catatHukuman, ubahHukuman, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
 
 const TINGKAT = Object.keys(TINGKAT_HUKUMAN) as TingkatHukuman[]
 const warnaTingkat: Record<TingkatHukuman, string> = { Ringan: "border-slate-200 bg-slate-100 text-slate-700", Sedang: "border-amber-200 bg-amber-100 text-amber-800", Berat: "border-red-200 bg-red-100 text-red-800" }
 
-function FormHukuman({ hukuman, onClose }: { hukuman?: Hukuman; onClose: () => void }) {
-  const { pegawai } = useKepeg()
+function FormHukuman({ hukuman, daftarPegawai, onClose, onSuccess }: { hukuman?: Hukuman; daftarPegawai: any[]; onClose: () => void; onSuccess?: () => void }) {
   const ubah = !!hukuman
   const [nip, setNip] = useState(hukuman?.nip ?? "")
   const [tingkat, setTingkat] = useState<TingkatHukuman>(hukuman?.tingkat ?? "Ringan")
@@ -26,19 +26,45 @@ function FormHukuman({ hukuman, onClose }: { hukuman?: Hukuman; onClose: () => v
   const [akhir, setAkhir] = useState(hukuman?.berakhir ?? "")
   const [uraian, setUraian] = useState(hukuman?.uraian ?? "")
   const [galat, setGalat] = useState("")
-  const durasi = mulai && akhir && akhir >= mulai ? hariInklusif(mulai, akhir) : null
+  const [saving, setSaving] = useState(false)
+  const durasi = mulai && akhir && akhir > mulai ? hariInklusif(mulai, akhir) : null
 
-  function simpan() {
-    const p = pegawai.find((x) => x.nip === nip)
+  async function simpan() {
+    const p = daftarPegawai.find((x) => x.nip === nip)
     if (!p) return setGalat("Pilih pegawai terlebih dahulu.")
     if (!sk.trim()) return setGalat("Nomor SK hukuman wajib diisi.")
     if (!mulai || !akhir) return setGalat("Tanggal mulai dan berakhir wajib diisi.")
-    if (akhir < mulai) return setGalat("Tanggal berakhir tidak boleh sebelum tanggal mulai.")
+    if (akhir <= mulai) return setGalat("Rentang tanggal tidak logis: Tanggal berakhir harus setelah tanggal mulai (tidak boleh di tanggal yang sama atau sebelumnya).")
     if (uraian.trim().length < 10) return setGalat("Uraian pelanggaran minimal 10 karakter.")
     const isi = { tingkat, jenis, sk: sk.trim(), mulai, berakhir: akhir, uraian: uraian.trim() }
-    if (hukuman) { ubahHukuman(hukuman.id, isi); toast.success("Perubahan hukuman disimpan.") }
-    else { catatHukuman({ nip: p.nip, nama: p.nama, ...isi }); toast.success("Hukuman disiplin dicatat.") }
-    onClose()
+    setSaving(true)
+    try {
+      if (hukuman) {
+        await kepegawaianService.updateHukuman((hukuman as any).raw_id || hukuman.id, isi)
+        ubahHukuman(hukuman.id, isi)
+        toast.success("Perubahan hukuman disimpan.")
+      } else {
+        await kepegawaianService.createHukuman({ NIP: p.nip, ...isi })
+        catatHukuman({ nip: p.nip, nama: p.nama, ...isi })
+        toast.success("Hukuman disiplin dicatat.")
+      }
+      onSuccess?.()
+      onClose()
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.response?.data?.errors?.tanggal_berakhir?.[0]
+      if (msg) {
+        setGalat(msg)
+        toast.error(msg)
+        return
+      } else {
+        if (hukuman) { ubahHukuman(hukuman.id, isi); toast.success("Perubahan hukuman disimpan (mode lokal).") }
+        else { catatHukuman({ nip: p.nip, nama: p.nama, ...isi }); toast.success("Hukuman disiplin dicatat (mode lokal).") }
+        onSuccess?.()
+        onClose()
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -48,7 +74,7 @@ function FormHukuman({ hukuman, onClose }: { hukuman?: Hukuman; onClose: () => v
         <div className="space-y-4">
           <Bidang label="Pegawai">
             <Select value={nip} onValueChange={setNip} disabled={ubah}><SelectTrigger className="w-full"><SelectValue placeholder="Pilih pegawai aktif" /></SelectTrigger>
-              <SelectContent>{pegawai.filter((p) => p.aktif || p.nip === nip).map((p) => <SelectItem key={p.nip} value={p.nip}>{p.nama} • {p.nip}</SelectItem>)}</SelectContent></Select>
+              <SelectContent>{daftarPegawai.filter((p) => p.aktif || p.nip === nip).map((p) => <SelectItem key={p.nip} value={p.nip}>{p.nama} • {p.nip}</SelectItem>)}</SelectContent></Select>
           </Bidang>
           <Bidang label="Tingkat hukuman">
             <div className="grid grid-cols-3 gap-2">
@@ -69,18 +95,44 @@ function FormHukuman({ hukuman, onClose }: { hukuman?: Hukuman; onClose: () => v
           <div className="flex gap-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900"><Info className="mt-0.5 size-4 shrink-0" />Persentase potongan ditentukan parameter aktif UPT Remunerasi. Bidang Kepegawaian hanya mencatat data sumber; potongan dihitung otomatis pada periode yang beririsan dengan masa hukuman.</div>
           {galat && <p className="text-xs text-destructive">{galat}</p>}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Batal</Button><Button onClick={simpan}>{ubah ? "Simpan Perubahan" : "Simpan"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button><Button onClick={simpan} disabled={saving}>{saving ? "Menyimpan..." : ubah ? "Simpan Perubahan" : "Simpan"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
 
 export default function HukumanDisiplinPage() {
-  const { hukuman } = useKepeg()
+  const { hukuman: hukumanDummy, pegawai: pegawaiDummy } = useKepeg()
+  const [hukuman, setHukuman] = useState<Hukuman[]>(hukumanDummy)
+  const [daftarPegawai, setDaftarPegawai] = useState<any[]>(pegawaiDummy)
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
   const [tingkat, setTingkat] = useState("semua")
   const [form, setForm] = useState<"baru" | Hukuman | null>(null)
+
+  const fetchData = async () => {
+    try {
+      const [resHukuman, resPegawai] = await Promise.all([
+        kepegawaianService.getHukumanList(),
+        kepegawaianService.getPegawaiList(),
+      ])
+      if (resHukuman?.data) setHukuman(resHukuman.data)
+      if (resPegawai?.data) {
+        setDaftarPegawai(resPegawai.data.map((p: any) => ({
+          nip: p.NIP || p.nip,
+          nama: p.nama,
+          aktif: p.aktif,
+        })))
+      }
+    } catch {
+      setHukuman(hukumanDummy)
+      setDaftarPegawai(pegawaiDummy)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const rows = useMemo(() => hukuman.filter((h) => (h.nama + h.nip + h.sk).toLowerCase().includes(q.toLowerCase())).filter((h) => status === "semua" || statusHukuman(h) === status).filter((h) => tingkat === "semua" || h.tingkat === tingkat), [hukuman, q, status, tingkat])
   const hitung = (s: StatusHukuman) => hukuman.filter((h) => statusHukuman(h) === s).length
@@ -125,7 +177,7 @@ export default function HukumanDisiplinPage() {
           <p className="text-[11px] text-muted-foreground">Menampilkan {rows.length} dari {hukuman.length} data</p>
         </Panel>
       </div>
-      {form && <FormHukuman hukuman={form === "baru" ? undefined : form} onClose={() => setForm(null)} />}
+      {form && <FormHukuman hukuman={form === "baru" ? undefined : form} daftarPegawai={daftarPegawai} onClose={() => setForm(null)} onSuccess={fetchData} />}
     </>
   )
 }

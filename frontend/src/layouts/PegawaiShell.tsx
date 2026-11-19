@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom"
 import { FileText, Gauge, MessageSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
+import { labelPeran, prefixPeran } from "@/lib/peran"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Daftar periode yang tersedia
@@ -31,11 +32,15 @@ export default function PegawaiShell() {
   const { akun } = useAuth()
   const [periode, setPeriode] = useState(PERIODE_AKTIF)
 
-  // Jika akun memiliki peran operasional selain pegawai, sediakan menu tugas unit
+  // Jika akun memiliki peran operasional selain pegawai, sediakan menu tugas unit dengan URL prefix yang benar
   const secondaryNav = akun && akun.peran !== "pegawai" ? {
-    title: `TUGAS ${akun.peran.toUpperCase()} (${akun.unit_nama || 'UNIT'})`,
+    title: `TUGAS ${labelPeran[akun.peran]?.toUpperCase() || akun.peran.toUpperCase()} (${akun.unit_nama || 'UNIT'})`,
     items: [
-      { to: `/${akun.peran}/dashboard`, label: `Dashboard ${akun.peran}`, icon: Gauge },
+      {
+        to: `${prefixPeran[akun.peran] || `/${akun.peran.replace(/_/g, "-")}`}/dashboard`,
+        label: `Dashboard ${labelPeran[akun.peran] || akun.peran}`,
+        icon: Gauge,
+      },
     ],
   } : undefined
 

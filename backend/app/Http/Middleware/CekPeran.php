@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Middleware;
 
 use Closure;
@@ -8,10 +9,20 @@ class CekPeran
 {
     public function handle(Request $request, Closure $next, ...$peran)
     {
+        /** @var \App\Models\Akun|null $user */
         $user = $request->user();
-        if (!$user || !in_array($user->peran->value, $peran)) {
-            return response()->json(['message' => 'Akses ditolak'], 403);
+        if (!$user) {
+            return response()->json(['message' => 'Akses ditolak: Silakan login terlebih dahulu.'], 401);
         }
-        return $next($request);
+
+        foreach ($peran as $p) {
+            if ($user->hasRole((string) $p)) {
+                return $next($request);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Akses ditolak: Anda tidak memiliki hak akses untuk peran ini (NFR-04).',
+        ], 403);
     }
 }

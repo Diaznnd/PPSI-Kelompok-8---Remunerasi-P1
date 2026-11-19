@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AreaTeks, Avatar, Bidang } from "@/components/kepegawaian/ui"
 import { GOLONGAN, JENIS_PEGAWAI, STATUS_PEGAWAI, kepeg, type JenisPegawai, type PegawaiKep, type StatusPegawai } from "@/data/dummy-kepegawaian"
 import { nonaktifkanPegawai, tambahPegawai, ubahPegawai, useKepeg } from "@/data/store-kepegawaian"
+import { kepegawaianService } from "@/services/kepegawaianService"
 
 // Dipasang bersyarat oleh halaman induk ({form && <FormPegawaiDialog ... />}) sehingga isiannya selalu segar.
-export function FormPegawaiDialog({ pegawai, onClose }: { pegawai?: PegawaiKep; onClose: () => void }) {
+export function FormPegawaiDialog({ pegawai, onClose, onSuccess }: { pegawai?: PegawaiKep; onClose: () => void; onSuccess?: () => void }) {
   const { pegawai: daftar } = useKepeg()
   const ubah = !!pegawai
   const [nip, setNip] = useState(pegawai?.nip ?? "")
@@ -21,20 +22,61 @@ export function FormPegawaiDialog({ pegawai, onClose }: { pegawai?: PegawaiKep; 
   const [golongan, setGolongan] = useState(pegawai?.golongan ?? "III/a")
   const [tmt, setTmt] = useState(pegawai?.tmt ?? "")
   const [galat, setGalat] = useState("")
+  const [saving, setSaving] = useState(false)
 
-  function simpan() {
+  async function simpan() {
     if (!ubah && !/^\d{18}$/.test(nip)) return setGalat("NIP harus 18 digit angka.")
-    if (!ubah && daftar.some((p) => p.nip === nip)) return setGalat("NIP sudah terdaftar.")
     if (!nama.trim()) return setGalat("Nama lengkap wajib diisi.")
     if (!/^\S+@\S+\.\S+$/.test(email)) return setGalat("Email institusi tidak valid.")
-    if (ubah) {
-      ubahPegawai(pegawai.nip, { nama: nama.trim(), email, jenis, status, golongan, tmt })
-      toast.success("Perubahan identitas disimpan.")
-    } else {
-      tambahPegawai({ nip, nama: nama.trim(), email, jenis, status, golongan, jabatan: "", grade: 0, tmt, aktif: true })
-      toast.success("Pegawai ditambahkan.")
+    setSaving(true)
+    setGalat("")
+    try {
+      if (ubah) {
+        await kepegawaianService.updatePegawai(pegawai.nip, {
+          nama: nama.trim(),
+          email,
+          jenis,
+          status_kepegawaian: status,
+          pangkat_golongan: golongan,
+          tmt: tmt || undefined,
+        })
+        ubahPegawai(pegawai.nip, { nama: nama.trim(), email, jenis, status, golongan, tmt })
+        toast.success("Perubahan identitas disimpan.")
+      } else {
+        await kepegawaianService.createPegawai({
+          NIP: nip,
+          nama: nama.trim(),
+          email,
+          jenis,
+          status_kepegawaian: status,
+          pangkat_golongan: golongan,
+          tmt: tmt || undefined,
+        })
+        tambahPegawai({ nip, nama: nama.trim(), email, jenis, status, golongan, jabatan: "", grade: 0, tmt, aktif: true })
+        toast.success("Pegawai ditambahkan.")
+      }
+      onSuccess?.()
+      onClose()
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.response?.data?.errors?.NIP?.[0]
+      if (msg) {
+        setGalat(msg)
+        toast.error(msg)
+      } else {
+        if (!ubah && daftar.some((p) => p.nip === nip)) return setGalat("NIP sudah terdaftar.")
+        if (ubah) {
+          ubahPegawai(pegawai.nip, { nama: nama.trim(), email, jenis, status, golongan, tmt })
+          toast.success("Perubahan identitas disimpan (mode lokal).")
+        } else {
+          tambahPegawai({ nip, nama: nama.trim(), email, jenis, status, golongan, jabatan: "", grade: 0, tmt, aktif: true })
+          toast.success("Pegawai ditambahkan (mode lokal).")
+        }
+        onSuccess?.()
+        onClose()
+      }
+    } finally {
+      setSaving(false)
     }
-    onClose()
   }
 
   return (
@@ -69,7 +111,7 @@ export function FormPegawaiDialog({ pegawai, onClose }: { pegawai?: PegawaiKep; 
           </div>
           {galat && <p className="text-xs text-destructive">{galat}</p>}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Batal</Button><Button onClick={simpan}>{ubah ? "Simpan Perubahan" : "Simpan Pegawai"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button><Button onClick={simpan} disabled={saving}>{saving ? "Menyimpan..." : ubah ? "Simpan Perubahan" : "Simpan Pegawai"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -77,9 +119,26 @@ export function FormPegawaiDialog({ pegawai, onClose }: { pegawai?: PegawaiKep; 
 
 const ALASAN = ["Mutasi keluar unit", "Pensiun", "Pemberhentian", "Tugas belajar", "Meninggal dunia"]
 
-export function NonaktifkanDialog({ pegawai, onClose }: { pegawai: PegawaiKep; onClose: () => void }) {
+export function NonaktifkanDialog({ pegawai, onClose, onSuccess }: { pegawai: PegawaiKep; onClose: () => void; onSuccess?: () => void }) {
   const [alasan, setAlasan] = useState(ALASAN[0])
   const [ket, setKet] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  async function prosesNonaktif() {
+    setSaving(true)
+    try {
+      await kepegawaianService.nonaktifkanPegawai(pegawai.nip, { alasan, keterangan: ket.trim() })
+    } catch {
+      // fallback lokal
+    } finally {
+      nonaktifkanPegawai(pegawai.nip, alasan, ket.trim())
+      toast.success(`${pegawai.nama} dinonaktifkan.`)
+      setSaving(false)
+      onSuccess?.()
+      onClose()
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md!">
@@ -97,8 +156,8 @@ export function NonaktifkanDialog({ pegawai, onClose }: { pegawai: PegawaiKep; o
           <Bidang label="Keterangan"><AreaTeks rows={3} value={ket} onChange={(e) => setKet(e.target.value)} placeholder="Contoh: SK Mutasi 0912/UN16.R/KP/2026, berlaku 1 November 2026" /></Bidang>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Batal</Button>
-          <Button variant="destructive" onClick={() => { nonaktifkanPegawai(pegawai.nip, alasan, ket.trim()); toast.success(`${pegawai.nama} dinonaktifkan.`); onClose() }}>Nonaktifkan</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button>
+          <Button variant="destructive" onClick={prosesNonaktif} disabled={saving}>{saving ? "Memproses..." : "Nonaktifkan"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
