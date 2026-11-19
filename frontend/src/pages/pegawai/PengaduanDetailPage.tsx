@@ -25,6 +25,7 @@ export default function PengaduanDetailPage() {
   const [loading, setLoading] = useState(true)
   const [pesan, setPesan] = useState<Pesan[]>([])
   const [teks, setTeks] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -71,11 +72,20 @@ export default function PengaduanDetailPage() {
 
   const selesai = p.StatusPengaduan === "Selesai"
 
-  function kirim() {
-    if (!teks.trim()) return
-    setPesan((m) => [...m, { dari: "Anda", waktu: new Date().toLocaleString("id-ID"), teks: teks.trim() }])
-    setTeks("")
-    toast.success("Keterangan terkirim.")
+  async function kirim() {
+    if (!teks.trim() || !id || submitting) return
+    const textToSend = teks.trim()
+    try {
+      setSubmitting(true)
+      await pegawaiService.kirimPesanPengaduan(id, textToSend)
+      setPesan((m) => [...m, { dari: "Anda", waktu: new Date().toLocaleString("id-ID"), teks: textToSend }])
+      setTeks("")
+      toast.success("Keterangan terkirim.")
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Gagal mengirim keterangan.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   // Parse timeline from riwayat_status
@@ -201,7 +211,7 @@ export default function PengaduanDetailPage() {
                 />
                 <div className="mt-2 flex items-center justify-between">
                   <span className="text-[11px] text-muted-foreground">{teks.length} karakter</span>
-                  <Button onClick={kirim} disabled={!teks.trim()}><Send /> Kirim Keterangan</Button>
+                  <Button onClick={kirim} disabled={!teks.trim() || submitting}><Send /> Kirim Keterangan</Button>
                 </div>
               </Panel>
             )}

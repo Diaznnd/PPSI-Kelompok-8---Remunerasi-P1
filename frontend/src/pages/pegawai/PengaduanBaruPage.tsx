@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { IconBox, PageHeading, Panel } from "@/components/pegawai/shared"
 import { cn } from "@/lib/utils"
+import { pegawaiService } from "@/services/pegawaiService"
 
 // Constants
 const DAFTAR_PERIODE = [
@@ -42,6 +43,7 @@ export default function PengaduanBaruPage() {
   const [uraian, setUraian] = useState("")
   const [berkas, setBerkas] = useState<File | null>(null)
   const [drag, setDrag] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   function pilih(f?: File) {
     if (!f) return
@@ -58,10 +60,24 @@ export default function PengaduanBaruPage() {
 
   const valid = judul.trim().length > 0 && uraian.trim().length >= MIN_URAIAN
 
-  function kirim() {
-    if (!valid) return
-    toast.success("Pengaduan terkirim (data dummy).")
-    navigate("/pegawai/pengaduan")
+  async function kirim() {
+    if (!valid || submitting) return
+    try {
+      setSubmitting(true)
+      await pegawaiService.kirimPengaduan({
+        kategori,
+        periode,
+        judul: judul.trim(),
+        uraian: uraian.trim(),
+        berkas,
+      })
+      toast.success("Pengaduan berhasil diajukan.")
+      navigate("/pegawai/pengaduan")
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Gagal mengirim pengaduan.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -133,7 +149,7 @@ export default function PengaduanBaruPage() {
 
           <div className="flex justify-end gap-2 border-t pt-5">
             <Button asChild variant="outline"><Link to="/pegawai/pengaduan">Batal</Link></Button>
-            <Button onClick={kirim} disabled={!valid}><Send /> Kirim Pengaduan</Button>
+            <Button onClick={kirim} disabled={!valid || submitting}><Send /> Kirim Pengaduan</Button>
           </div>
         </Panel>
 

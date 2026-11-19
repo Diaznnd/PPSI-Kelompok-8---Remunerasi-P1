@@ -29,6 +29,11 @@ use App\Http\Controllers\UptRemunerasi\NotifikasiController as UptNotifikasiCont
 use App\Http\Controllers\UptRemunerasi\PenerbitanSlipController as UptPenerbitanSlipController;
 use App\Http\Controllers\UptRemunerasi\PenetapanJabatanController as UptPenetapanJabatanController;
 use App\Http\Controllers\UptRemunerasi\PengaduanEskalasiController as UptPengaduanEskalasiController;
+use App\Http\Controllers\Verifikator\AuditLogVerifikatorController as VerifikatorAuditLogController;
+use App\Http\Controllers\Verifikator\DashboardController as VerifikatorDashboardController;
+use App\Http\Controllers\Verifikator\PantauStatusController as VerifikatorPantauStatusController;
+use App\Http\Controllers\Verifikator\VerifikasiJabatanController as VerifikatorJabatanController;
+use App\Http\Controllers\Verifikator\VerifikasiPengajuanController as VerifikatorPengajuanController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/pengaduan', [PegawaiPengaduanController::class, 'store']);
         Route::get('/pengaduan/{id}', [PegawaiPengaduanController::class, 'show']);
         Route::post('/pengaduan/{id}/tanggapan', [PegawaiPengaduanController::class, 'storeTanggapan']);
+        Route::post('/pengaduan/{id}/pesan', [PegawaiPengaduanController::class, 'storeTanggapan']);
     });
 
     // ========================================================
@@ -112,6 +118,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/pengaduan', [KepegawaianPengaduanController::class, 'index']);
         Route::get('/pengaduan/{id}', [KepegawaianPengaduanController::class, 'show']);
         Route::post('/pengaduan/{id}/tanggapi', [KepegawaianPengaduanController::class, 'tanggapi']);
+        Route::post('/pengaduan/{id}/tanggapan', [KepegawaianPengaduanController::class, 'tanggapi']);
     });
 
     // ========================================================
@@ -146,6 +153,41 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/amprah', [BendaharaAmprahController::class, 'index']);
         Route::get('/amprah/{id}', [BendaharaAmprahController::class, 'show']);
         Route::get('/rekapitulasi', [BendaharaRekapitulasiController::class, 'index']);
+    });
+
+    // ========================================================
+    // ROLE VERIFIKATOR (FR-21 S.D. FR-26)
+    // ========================================================
+    Route::prefix('verifikator')->middleware('peran:verifikator')->group(function () {
+        // Beranda & Ringkasan Antrean
+        Route::get('/dashboard', [VerifikatorDashboardController::class, 'index']);
+        Route::get('/beranda', [VerifikatorDashboardController::class, 'index']);
+
+        // FR-23: Memverifikasi Pengajuan P1
+        Route::get('/pengajuan', [VerifikatorPengajuanController::class, 'index']);
+        Route::get('/pengajuan/{id}', [VerifikatorPengajuanController::class, 'show']);
+        Route::post('/pengajuan/{id}/setujui', [VerifikatorPengajuanController::class, 'setujui']);
+        Route::post('/pengajuan/{id}/verifikasi', [VerifikatorPengajuanController::class, 'setujui']);
+        Route::post('/pengajuan/{id}/kembalikan', [VerifikatorPengajuanController::class, 'kembalikan']);
+
+        // FR-24: Memverifikasi Perubahan Jabatan/Grade
+        Route::get('/jabatan', [VerifikatorJabatanController::class, 'index']);
+        Route::get('/usulan', [VerifikatorJabatanController::class, 'index']);
+        Route::get('/jabatan/{id}', [VerifikatorJabatanController::class, 'show']);
+        Route::get('/usulan/{id}', [VerifikatorJabatanController::class, 'show']);
+        Route::post('/jabatan/{id}/setujui', [VerifikatorJabatanController::class, 'setujui']);
+        Route::post('/usulan/{id}/setujui', [VerifikatorJabatanController::class, 'setujui']);
+        Route::post('/jabatan/{id}/verifikasi', [VerifikatorJabatanController::class, 'setujui']);
+        Route::post('/usulan/{id}/verifikasi', [VerifikatorJabatanController::class, 'setujui']);
+        Route::post('/jabatan/{id}/kembalikan', [VerifikatorJabatanController::class, 'kembalikan']);
+        Route::post('/usulan/{id}/kembalikan', [VerifikatorJabatanController::class, 'kembalikan']);
+
+        // FR-25: Memantau Status Pengajuan P1
+        Route::get('/status', [VerifikatorPantauStatusController::class, 'index']);
+
+        // FR-26: Melihat Jejak Audit
+        Route::get('/audit', [VerifikatorAuditLogController::class, 'index']);
+        Route::get('/audit-log', [VerifikatorAuditLogController::class, 'index']);
     });
 
     // ========================================================

@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from "react"
+import { verifikatorService } from "@/services/verifikatorService"
 import {
   AUDIT_AWAL, PENGAJUAN_AWAL, USULAN_AWAL,
   type Audit, type PengajuanP1, type StatusVerif, type UsulanJabatan,
@@ -74,6 +75,21 @@ export function putuskan(a: { jenis: "pengajuan" | "usulan"; id: string; status:
     usulan: u ? { ...state.usulan, [u.id]: putusan } : state.usulan,
     audit: [entri, ...state.audit],
   })
+
+  // Sinkronisasi ke backend API
+  if (a.jenis === "pengajuan") {
+    if (setuju) {
+      verifikatorService.setujuiPengajuan(a.id, { catatan: "Seluruh validasi otomatis telah diperiksa dan sesuai." }).catch(() => {})
+    } else {
+      verifikatorService.kembalikanPengajuan(a.id, { alasan: a.alasan ?? "Pengajuan dikembalikan untuk perbaikan." }).catch(() => {})
+    }
+  } else if (a.jenis === "usulan") {
+    if (setuju) {
+      verifikatorService.setujuiUsulan(a.id, { catatan: "Usulan perubahan jabatan disetujui." }).catch(() => {})
+    } else {
+      verifikatorService.kembalikanUsulan(a.id, { alasan: a.alasan ?? "Usulan jabatan dikembalikan untuk perbaikan." }).catch(() => {})
+    }
+  }
 }
 
 export function resetDemo() {

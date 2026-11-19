@@ -29,6 +29,7 @@ export default function SlipDetailPage() {
   const navigate = useNavigate()
   const [slip, setSlip] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     const fetchSlip = async () => {
@@ -67,7 +68,28 @@ export default function SlipDetailPage() {
 
   const pegawai = slip.pegawai || {}
   const cetak = () => window.print()
-  const unduh = () => toast.info("Unduh PDF belum tersambung ke backend (dummy).")
+  const unduh = async () => {
+    if (!id || downloading) return
+    try {
+      setDownloading(true)
+      const data = await pegawaiService.downloadSlipPdf(id)
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "application/pdf" })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      const nomorBersih = String(slip?.NomorSlip || slip?.nomor || id).replace(/[^a-zA-Z0-9_-]/g, "_")
+      link.setAttribute("download", `slip-p1-${nomorBersih}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success("Slip PDF berhasil diunduh.")
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Gagal mengunduh file PDF.")
+    } finally {
+      setDownloading(false)
+    }
+  }
   const ajukan = () => navigate(`/pegawai/pengaduan/baru?periode=${encodeURIComponent(slip.Periode)}`)
 
   return (
@@ -81,7 +103,7 @@ export default function SlipDetailPage() {
         action={
           <div className="flex gap-2 print:hidden">
             <Button variant="outline" onClick={cetak}><Printer /> Cetak</Button>
-            <Button onClick={unduh}><Download /> Unduh PDF</Button>
+            <Button onClick={unduh} disabled={downloading}><Download /> Unduh PDF</Button>
           </div>
         }
       />
