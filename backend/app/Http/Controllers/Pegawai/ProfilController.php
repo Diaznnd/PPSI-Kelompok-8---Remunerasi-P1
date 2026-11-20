@@ -14,10 +14,10 @@ class ProfilController extends Controller
     protected function resolveProfilPegawai($akun): array
     {
         $nip = $akun?->NIP ?? '198803122015042001';
-        $pegawai = $akun?->pegawai ?? Pegawai::with('unitKerja')->where('NIP', $nip)->first();
+        $pegawai = ($akun && $akun->NIP) ? Pegawai::with('unitKerja')->where('NIP', $akun->NIP)->first() : null;
 
         if (!$pegawai) {
-            $pegawai = Pegawai::with('unitKerja')->first();
+            $pegawai = Pegawai::with('unitKerja')->where('NIP', $nip)->first();
         }
 
         $usulanTerakhir = $pegawai ? $pegawai->usulanJabatanTerakhir : null;

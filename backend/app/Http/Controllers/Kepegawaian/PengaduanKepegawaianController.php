@@ -61,7 +61,7 @@ class PengaduanKepegawaianController extends Controller
         $statusRaw = strtolower($a->status ?? 'diajukan');
         $status = match (true) {
             in_array($statusRaw, ['selesai', 'diselesaikan'], true) => 'Selesai',
-            in_array($statusRaw, ['diteruskan', 'dieskalasi', 'eskalasi', 'ditindaklanjuti'], true) || strtolower($a->tingkat ?? '') === 'upt' => 'Diteruskan',
+            in_array($statusRaw, ['diteruskan', 'dieskalasi', 'eskalasi', 'ditindaklanjuti'], true) || in_array(strtolower($a->tingkat ?? ''), ['upt', 'universitas'], true) => 'Diteruskan',
             default => 'Diajukan',
         };
 
@@ -228,10 +228,11 @@ class PengaduanKepegawaianController extends Controller
             if ($validated['tindakan'] === 'selesai') {
                 $pengaduan->status = 'Selesai';
                 $pengaduan->tingkat = 'unit';
+                $pengaduan->diselesaikan_at = now();
             } else {
                 // Eskalasi ke UPT Remunerasi (FR-08 -> FR-40)
                 $pengaduan->status = 'Diteruskan';
-                $pengaduan->tingkat = 'upt';
+                $pengaduan->tingkat = 'universitas';
             }
             $pengaduan->save();
 

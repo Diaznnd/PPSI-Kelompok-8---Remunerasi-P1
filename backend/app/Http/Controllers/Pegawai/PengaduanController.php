@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Pegawai;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Pegawai;
 use App\Models\Pengaduan;
 use App\Models\TanggapanPengaduan;
@@ -13,12 +14,18 @@ use Illuminate\Support\Carbon;
 class PengaduanController extends Controller
 {
     /**
-     * Daftar pengaduan milik pegawai yang login
+     * FR-44: Daftar pengaduan milik pegawai yang login
      */
     public function index(Request $request): JsonResponse
     {
         $akun = $request->user();
-        $nip = $akun->NIP ?? '198803122015042001';
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
 
         $pengaduans = Pengaduan::where('NIP', $nip)
             ->with(['tanggapan'])
@@ -34,7 +41,7 @@ class PengaduanController extends Controller
                 default => 2,
             };
 
-            $nomor = 'UA-FTI-2026-00' . str_pad((string) $p->id, 2, '0', STR_PAD_LEFT);
+            $nomor = sprintf('UA-FTI-2026-%04d', $p->id);
             $tglIso = ($p->diajukan_at ?: $p->created_at ?: now())->toIso8601String();
 
             return [
@@ -67,7 +74,7 @@ class PengaduanController extends Controller
     }
 
     /**
-     * Buat pengaduan baru
+     * FR-44: Buat pengaduan baru oleh pegawai (dengan kategori spesifik dan dokumen lampiran max 5 MB)
      */
     public function store(Request $request): JsonResponse
     {
@@ -77,10 +84,22 @@ class PengaduanController extends Controller
             'judul' => 'nullable|string|max:255',
             'uraian' => 'required|string|min:10',
             'berkas' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ], [
+            'kategori.required' => 'Kategori pengaduan wajib dipilih.',
+            'periode.required' => 'Periode pengaduan wajib dipilih.',
+            'uraian.min' => 'Uraian pengaduan minimal 10 karakter.',
+            'berkas.max' => 'Ukuran berkas lampiran maksimal 5 MB (NFR-11).',
+            'berkas.mimes' => 'Format berkas lampiran harus berupa PDF, JPG, JPEG, atau PNG.',
         ]);
 
         $akun = $request->user();
-        $nip = $akun->NIP ?? '198803122015042001';
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
         $pegawai = $akun->pegawai ?? Pegawai::where('NIP', $nip)->first();
         $unitId = $pegawai?->unit_id ?? $pegawai?->usulanJabatanTerakhir?->unit_id ?? 1;
 
@@ -103,6 +122,7 @@ class PengaduanController extends Controller
             'diajukan_at' => Carbon::now(),
         ]);
 
+        // Catat pesan awal dalam utas pengaduan
         TanggapanPengaduan::create([
             'pengaduan_id' => $pengaduan->id,
             'NIP' => $nip,
@@ -112,11 +132,28 @@ class PengaduanController extends Controller
             'dikirim_at' => Carbon::now(),
         ]);
 
-        $nomor = 'UA-FTI-2026-00' . str_pad((string) $pengaduan->id, 2, '0', STR_PAD_LEFT);
+        // Catat Jejak Audit (FR-26 & NFR-05)
+        AuditLog::create([
+            'NIP' => $nip,
+            'unit_id' => $unitId,
+            'aksi' => 'Mengajukan Pengaduan Pegawai',
+            'objek_type' => 'Pengaduan',
+            'objek_id' => $pengaduan->id,
+            'nilai_sebelum' => null,
+            'nilai_sesudah' => [
+                'status' => 'Diajukan',
+                'kategori' => $pengaduan->kategori,
+                'periode' => $pengaduan->periode,
+            ],
+            'alasan' => $pengaduan->uraian,
+            'dicatat_at' => Carbon::now(),
+        ]);
+
+        $nomor = sprintf('UA-FTI-2026-%04d', $pengaduan->id);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Pengaduan berhasil diajukan.',
+            'message' => 'Pengaduan berhasil diajukan dengan status awal Diajukan (FR-44).',
             'data' => [
                 'id' => $pengaduan->id,
                 'nomor' => $nomor,
@@ -129,15 +166,22 @@ class PengaduanController extends Controller
     }
 
     /**
-     * Detail pengaduan beserta linimasa dan riwayat tanggapan/chat
+     * FR-44: Detail pengaduan beserta linimasa dan riwayat tanggapan (real-time tracking)
+     * Pegawai hanya dapat melihat pengaduannya sendiri (Isolasi data / 403 jika milik orang lain)
      */
     public function show(Request $request, $id): JsonResponse
     {
         $akun = $request->user();
-        $nip = $akun->NIP ?? '198803122015042001';
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
 
         $pengaduan = Pengaduan::where('id', $id)
-            ->with(['tanggapan.pegawai'])
+            ->with(['tanggapan.pegawai', 'pegawai'])
             ->first();
 
         if (!$pengaduan) {
@@ -145,6 +189,14 @@ class PengaduanController extends Controller
                 'status' => 'error',
                 'message' => 'Pengaduan tidak ditemukan.',
             ], 404);
+        }
+
+        // UJI ISOLASI AKSES: Jika mencoba mengakses pengaduan milik pegawai lain -> DITOLAK (403)
+        if ($pengaduan->NIP !== $nip) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Akses ditolak: Anda tidak memiliki akses ke pengaduan pegawai lain (FR-44 / NFR-04).',
+            ], 403);
         }
 
         $langkahSelesai = match ($pengaduan->status) {
@@ -155,7 +207,7 @@ class PengaduanController extends Controller
             default => 2,
         };
 
-        $nomor = 'UA-FTI-2026-00' . str_pad((string) $pengaduan->id, 2, '0', STR_PAD_LEFT);
+        $nomor = sprintf('UA-FTI-2026-%04d', $pengaduan->id);
         $tglDiajukanIso = ($pengaduan->diajukan_at ?: $pengaduan->created_at ?: now())->toIso8601String();
 
         $riwayatStatus = [
@@ -186,7 +238,7 @@ class PengaduanController extends Controller
             $riwayatStatus[] = [
                 'IDRiwayat' => 4,
                 'Status' => 'Selesai',
-                'TanggalStatus' => Carbon::parse($tglDiajukanIso)->addDay()->toIso8601String(),
+                'TanggalStatus' => $pengaduan->diselesaikan_at ? Carbon::parse($pengaduan->diselesaikan_at)->toIso8601String() : Carbon::parse($tglDiajukanIso)->addDay()->toIso8601String(),
                 'Oleh' => 'Bidang Kepegawaian / UPT Remunerasi',
             ];
         }
@@ -221,7 +273,7 @@ class PengaduanController extends Controller
                 'status' => $pengaduan->status,
                 'langkahSelesai' => $langkahSelesai,
                 'lampiran' => $pengaduan->lampiran_path ? url('/storage/' . $pengaduan->lampiran_path) : null,
-                'percakapan' => $tanggapanList,
+                'percacapan' => $tanggapanList,
                 'tanggapan' => $tanggapanList,
                 'riwayat_status' => $riwayatStatus,
                 // PascalCase keys
@@ -238,17 +290,26 @@ class PengaduanController extends Controller
     }
 
     /**
-     * Kirim balasan pesan pada tiket pengaduan
+     * FR-44: Kirim balasan pesan pada tiket pengaduan oleh pegawai
      */
     public function storeTanggapan(Request $request, $id): JsonResponse
     {
         $request->validate([
-            'teks' => 'required|string',
+            'teks' => 'required_without_all:pesan,isi|nullable|string',
+            'pesan' => 'required_without_all:teks,isi|nullable|string',
+            'isi' => 'required_without_all:teks,pesan|nullable|string',
             'berkas' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'lampiran' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
         $akun = $request->user();
-        $nip = $akun->NIP ?? '198803122015042001';
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
 
         $pengaduan = Pengaduan::where('id', $id)->first();
         if (!$pengaduan) {
@@ -258,16 +319,28 @@ class PengaduanController extends Controller
             ], 404);
         }
 
+        // UJI ISOLASI AKSES: Tidak dapat membalas tiket milik pegawai lain
+        if ($pengaduan->NIP !== $nip) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Akses ditolak: Anda tidak dapat menanggapi pengaduan pegawai lain (FR-44 / NFR-04).',
+            ], 403);
+        }
+
         $lampiranPath = null;
         if ($request->hasFile('berkas')) {
             $lampiranPath = $request->file('berkas')->store('pengaduan', 'public');
+        } elseif ($request->hasFile('lampiran')) {
+            $lampiranPath = $request->file('lampiran')->store('pengaduan', 'public');
         }
+
+        $isiPesan = $request->input('teks') ?: ($request->input('pesan') ?: $request->input('isi'));
 
         $tanggapan = TanggapanPengaduan::create([
             'pengaduan_id' => $pengaduan->id,
             'NIP' => $nip,
             'tipe' => 'pertanyaan',
-            'isi' => $request->teks,
+            'isi' => $isiPesan,
             'lampiran_path' => $lampiranPath,
             'dikirim_at' => Carbon::now(),
         ]);
@@ -281,6 +354,10 @@ class PengaduanController extends Controller
                 'waktu' => Carbon::now()->translatedFormat('d F Y, H.i') . ' WIB',
                 'teks' => $tanggapan->isi,
                 'lampiran' => $lampiranPath ? basename($lampiranPath) : null,
+                'DariRole' => 'Anda',
+                'TanggalTanggapan' => now()->toIso8601String(),
+                'Isi' => $tanggapan->isi,
+                'FileLampiran' => $lampiranPath ? basename($lampiranPath) : null,
             ],
         ], 201);
     }

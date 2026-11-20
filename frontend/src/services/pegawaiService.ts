@@ -126,6 +126,7 @@ export const pegawaiService = {
   async kirimTanggapan(pengaduanId: string | number, teks: string, berkas?: File | null) {
     const formData = new FormData()
     formData.append("teks", teks)
+    formData.append("pesan", teks)
     if (berkas) {
       formData.append("berkas", berkas)
     }
@@ -134,5 +135,33 @@ export const pegawaiService = {
       headers: { "Content-Type": "multipart/form-data" },
     })
     return res.data.data
+  },
+
+  /**
+   * Mengirim pesan balasan pada tiket pengaduan (/api/pegawai/pengaduan/{id}/pesan)
+   */
+  async kirimPesanPengaduan(pengaduanId: string | number, pesan: string, berkas?: File | null) {
+    const formData = new FormData()
+    formData.append("pesan", pesan)
+    formData.append("teks", pesan)
+    if (berkas) {
+      formData.append("berkas", berkas)
+    }
+
+    const res = await api.post(`/pegawai/pengaduan/${pengaduanId}/pesan`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    return res.data.data
+  },
+
+  /**
+   * Mengunduh file PDF slip P1 langsung dari backend (/api/pegawai/slip/{id}/pdf)
+   */
+  async downloadSlipPdf(id: string | number): Promise<Blob> {
+    const res = await api.get(`/pegawai/slip/${id}/pdf`, {
+      headers: { Accept: "application/pdf" },
+      responseType: "blob",
+    })
+    return res.data
   },
 }
