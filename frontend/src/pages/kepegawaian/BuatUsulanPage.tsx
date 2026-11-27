@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AreaTeks, Bidang, Dropzone } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { GRADE_PARAM, PERSEN_P1 } from "@/data/dummy-bendahara"
-import { JABATAN_MASTER, JENIS_USULAN } from "@/data/dummy-kepegawaian"
+import { GRADE_PARAM, PERSEN_P1 } from "@/types/bendahara"
+import { JABATAN_MASTER, JENIS_USULAN } from "@/types/kepegawaian"
 import { tambahUsulan, useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 import { rupiah } from "@/lib/format"
@@ -19,8 +19,8 @@ const cekPdf = (f: File) => (f.type !== "application/pdf" && !f.name.toLowerCase
 
 export default function BuatUsulanPage() {
   const navigate = useNavigate()
-  const { pegawai: pegawaiDummy } = useKepeg()
-  const [pegawai, setPegawai] = useState<any[]>(pegawaiDummy)
+  const { pegawai: defaultPegawai } = useKepeg()
+  const [pegawai, setPegawai] = useState<any[]>(defaultPegawai)
   const [nip, setNip] = useState("")
   const [jenis, setJenis] = useState<string>(JENIS_USULAN[0])
   const [mulai, setMulai] = useState("")

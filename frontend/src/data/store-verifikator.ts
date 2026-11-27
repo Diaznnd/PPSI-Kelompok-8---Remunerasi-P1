@@ -1,139 +1,98 @@
-import { useMemo, useSyncExternalStore } from "react"
+import { useEffect, useState } from "react"
 import { verifikatorService } from "@/services/verifikatorService"
-import {
-  AUDIT_AWAL, PENGAJUAN_AWAL, USULAN_AWAL,
-  type Audit, type PengajuanP1, type StatusVerif, type UsulanJabatan,
-} from "./dummy-verifikator"
+import type { Audit, PengajuanP1, UsulanJabatan } from "@/types/verifikator"
 
-// Penyimpanan keputusan verifikator untuk DEMO (tanpa backend).
-// Semua halaman membaca dari sini, jadi keputusan di satu halaman langsung terlihat di halaman lain.
-// Data tersimpan di localStorage; hapus dengan resetDemo(). Ganti dengan panggilan api saat backend siap.
-
-type Putusan = { status: StatusVerif; waktu: string; catatan?: string }
-type State = { pengajuan: Record<string, Putusan>; usulan: Record<string, Putusan>; audit: Audit[] }
-
-const KEY = "siremun_verifikator_v1"
-const KOSONG: State = { pengajuan: {}, usulan: {}, audit: [] }
-const PELAKU = { nama: "Rizki Maulana", peran: "Verifikator" }
-
-function muat(): State {
-  try {
-    const raw = localStorage.getItem(KEY)
-    return raw ? { ...KOSONG, ...JSON.parse(raw) } : KOSONG
-  } catch {
-    return KOSONG
-  }
-}
-
-let state: State = muat()
-const pendengar = new Set<() => void>()
-const beritahu = () => pendengar.forEach((l) => l())
-
-function simpan(next: State) {
-  state = next
-  try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* penyimpanan penuh/dinonaktifkan: tetap jalan di memori */ }
-  beritahu()
-}
-
-// sinkron antar tab browser
-if (typeof window !== "undefined") {
-  window.addEventListener("storage", (e) => { if (e.key === KEY) { state = muat(); beritahu() } })
-}
-
-const subscribe = (l: () => void) => { pendengar.add(l); return () => { pendengar.delete(l) } }
-const useStore = () => useSyncExternalStore(subscribe, () => state)
-
-const dua = (n: number) => String(n).padStart(2, "0")
-function sekarang() {
-  const d = new Date()
-  const tgl = d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
-  return { teks: `${tgl}, ${dua(d.getHours())}.${dua(d.getMinutes())}`, iso: `${d.getFullYear()}-${dua(d.getMonth() + 1)}-${dua(d.getDate())}` }
-}
-
-export function putuskan(a: { jenis: "pengajuan" | "usulan"; id: string; status: "Diverifikasi" | "Dikembalikan"; alasan?: string }) {
-  const { teks, iso } = sekarang()
+export function putuskan(a: {
+  jenis: "pengajuan" | "usulan"
+  id: string
+  status: "Diverifikasi" | "Dikembalikan"
+  alasan?: string
+}) {
   const setuju = a.status === "Diverifikasi"
-  const p = a.jenis === "pengajuan" ? PENGAJUAN_AWAL.find((x) => x.id === a.id) : undefined
-  const u = a.jenis === "usulan" ? USULAN_AWAL.find((x) => x.id === a.id) : undefined
-  if (!p && !u) return
-
-  const entri: Audit = {
-    id: `u${Date.now()}`, tanggal: iso, waktu: teks, pelaku: PELAKU.nama, peran: PELAKU.peran,
-    aksi: p ? (setuju ? "Menyetujui pengajuan" : "Mengembalikan pengajuan") : (setuju ? "Menyetujui usulan jabatan" : "Mengembalikan usulan jabatan"),
-    objek: p ? p.id : u!.nama,
-    judul: p ? (setuju ? "Persetujuan Pengajuan P1" : "Pengembalian Pengajuan P1") : (setuju ? "Persetujuan Usulan Jabatan" : "Pengembalian Usulan Jabatan"),
-    sebelum: { judul: "Status: Diajukan", ket: p ? `Pengajuan ke-${p.ke}` : u!.jenis },
-    sesudah: setuju
-      ? { judul: "Status: Diverifikasi", ket: "Diteruskan ke UPT Remunerasi" }
-      : { judul: "Status: Dikembalikan", ket: p ? "Dikembalikan kepada Bendahara" : "Dikembalikan kepada Bidang Kepegawaian" },
-    alasan: setuju ? "Seluruh validasi otomatis telah diperiksa dan sesuai." : (a.alasan ?? "-"),
-  }
-  const putusan: Putusan = { status: a.status, waktu: teks, catatan: a.alasan }
-  simpan({
-    ...state,
-    pengajuan: p ? { ...state.pengajuan, [p.id]: putusan } : state.pengajuan,
-    usulan: u ? { ...state.usulan, [u.id]: putusan } : state.usulan,
-    audit: [entri, ...state.audit],
-  })
-
-  // Sinkronisasi ke backend API
   if (a.jenis === "pengajuan") {
     if (setuju) {
-      verifikatorService.setujuiPengajuan(a.id, { catatan: "Seluruh validasi otomatis telah diperiksa dan sesuai." }).catch(() => {})
+      return verifikatorService.setujuiPengajuan(a.id, { catatan: a.alasan || "Disetujui verifikator." })
     } else {
-      verifikatorService.kembalikanPengajuan(a.id, { alasan: a.alasan ?? "Pengajuan dikembalikan untuk perbaikan." }).catch(() => {})
+      return verifikatorService.kembalikanPengajuan(a.id, { alasan: a.alasan ?? "Pengajuan dikembalikan untuk perbaikan." })
     }
   } else if (a.jenis === "usulan") {
     if (setuju) {
-      verifikatorService.setujuiUsulan(a.id, { catatan: "Usulan perubahan jabatan disetujui." }).catch(() => {})
+      return verifikatorService.setujuiUsulan(a.id, { catatan: a.alasan || "Usulan jabatan disetujui." })
     } else {
-      verifikatorService.kembalikanUsulan(a.id, { alasan: a.alasan ?? "Usulan jabatan dikembalikan untuk perbaikan." }).catch(() => {})
+      return verifikatorService.kembalikanUsulan(a.id, { alasan: a.alasan ?? "Usulan jabatan dikembalikan untuk perbaikan." })
     }
   }
 }
 
 export function resetDemo() {
-  simpan(KOSONG)
+  // No-op for real backend
 }
 
-// ---------- Penggabungan data awal + keputusan (fungsi murni) ----------
-const kejadian = (o: Putusan, ke: number, penerima: string) => ({
-  ke,
-  judul: o.status === "Diverifikasi" ? "Disetujui dan Diteruskan" : `Dikembalikan ${penerima === "Bendahara" ? "Verifikator" : "Kepegawaian"}`,
-  waktu: `${o.waktu} WIB`,
-  oleh: `${PELAKU.nama} • ${PELAKU.peran}`,
-  catatan: o.catatan,
-  selesai: o.status === "Diverifikasi",
-})
-
-export function gabungPengajuan(s: State): PengajuanP1[] {
-  return PENGAJUAN_AWAL.map((p) => {
-    const o = s.pengajuan[p.id]
-    return o ? { ...p, status: o.status, diperbarui: `${o.waktu} WIB`, riwayat: [...p.riwayat, kejadian(o, p.ke, "Bendahara")] } : p
-  })
+export function usePengajuan(): PengajuanP1[] {
+  const [data, setData] = useState<PengajuanP1[]>([])
+  useEffect(() => {
+    verifikatorService
+      .getPengajuanList()
+      .then((res) => {
+        if (res?.data) setData(res.data)
+        else if (Array.isArray(res)) setData(res)
+      })
+      .catch(() => setData([]))
+  }, [])
+  return data
 }
 
-export function gabungUsulan(s: State): UsulanJabatan[] {
-  return USULAN_AWAL.map((u) => {
-    const o = s.usulan[u.id]
-    return o ? { ...u, status: o.status, diperbarui: `${o.waktu} WIB`, riwayat: [...u.riwayat, kejadian(o, 1, "Kepegawaian")] } : u
-  })
+export function useUsulan(): UsulanJabatan[] {
+  const [data, setData] = useState<UsulanJabatan[]>([])
+  useEffect(() => {
+    verifikatorService
+      .getUsulanList()
+      .then((res) => {
+        if (res?.data) setData(res.data)
+        else if (Array.isArray(res)) setData(res)
+      })
+      .catch(() => setData([]))
+  }, [])
+  return data
 }
 
-export const usePengajuan = () => { const s = useStore(); return useMemo(() => gabungPengajuan(s), [s]) }
-export const useUsulan = () => { const s = useStore(); return useMemo(() => gabungUsulan(s), [s]) }
-export const useAudit = () => { const s = useStore(); return useMemo(() => [...s.audit, ...AUDIT_AWAL], [s]) }
+export function useAudit(): Audit[] {
+  const [data, setData] = useState<Audit[]>([])
+  useEffect(() => {
+    verifikatorService
+      .getAuditLog()
+      .then((res) => {
+        if (res?.data) setData(res.data)
+        else if (Array.isArray(res)) setData(res)
+      })
+      .catch(() => setData([]))
+  }, [])
+  return data
+}
 
-// Selisih angka kartu di beranda akibat keputusan yang sudah diambil
 export function useStatistik() {
-  const s = useStore()
-  return useMemo(() => {
-    const semua = [...Object.values(s.pengajuan), ...Object.values(s.usulan)]
-    return {
-      pengajuan: Object.keys(s.pengajuan).length,
-      usulan: Object.keys(s.usulan).length,
-      dikembalikan: semua.filter((x) => x.status === "Dikembalikan").length,
-      disetujui: semua.filter((x) => x.status === "Diverifikasi").length,
-    }
-  }, [s])
+  const [stats, setStats] = useState({
+    pengajuan: 0,
+    usulan: 0,
+    dikembalikan: 0,
+    disetujui: 0,
+  })
+
+  useEffect(() => {
+    verifikatorService
+      .getDashboard()
+      .then((res) => {
+        if (res?.statistik) {
+          setStats({
+            pengajuan: res.statistik.antrean_pengajuan ?? 0,
+            usulan: res.statistik.antrean_usulan ?? 0,
+            dikembalikan: res.statistik.total_dikembalikan ?? 0,
+            disetujui: res.statistik.total_disetujui ?? 0,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  return stats
 }

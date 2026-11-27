@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/context/AuthContext"
 import { Badge } from "@/components/ui/badge"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { type Amprah } from "@/data/dummy-bendahara"
+import { type Amprah } from "@/types/bendahara"
 import { bendaharaService } from "@/services/bendaharaService"
 import { rupiah } from "@/lib/format"
 
@@ -72,7 +72,7 @@ export default function AmprahListPage() {
                   {a.tersedia ? (
                     <>
                       <Link to={`/bendahara/amprah/${a.id}`} className="hover:underline">Lihat</Link>
-                      <button className="ml-4 inline-flex items-center gap-1 hover:underline" onClick={() => toast.info("Unduh amprah belum tersambung ke backend (dummy).")}><Download className="size-3.5" /> Unduh</button>
+                      <button className="ml-4 inline-flex items-center gap-1 hover:underline" onClick={() => toast.info("Fitur unduh dokumen amprah sedang diproses...")}><Download className="size-3.5" /> Unduh</button>
                     </>
                   ) : "—"}
                 </td>

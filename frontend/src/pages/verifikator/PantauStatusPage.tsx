@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { FilterSelect, StatusVerifBadge, Tag, TH } from "@/components/verifikator/shared"
-import type { RiwayatKejadian, StatusVerif } from "@/data/dummy-verifikator"
+import type { RiwayatKejadian, StatusVerif } from "@/types/verifikator"
 import { usePengajuan, useUsulan } from "@/data/store-verifikator"
 import { cn } from "@/lib/utils"
 

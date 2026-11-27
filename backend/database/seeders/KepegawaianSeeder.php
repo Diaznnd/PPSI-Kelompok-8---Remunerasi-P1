@@ -33,20 +33,27 @@ class KepegawaianSeeder extends Seeder
 
         $akunKepeg = Akun::where('username', '3')->first();
 
-        // 1. Seed Seluruh Master Grade (Sesuai Tabel Daftar Grade pada Lampiran Dokumen A2 hal. 33)
+        // 1. Seed Seluruh Master Grade (Sesuai Tabel Nilai Jabatan & Remunerasi P1 UNAND)
         $gradesData = [
             'Grade 3' => 2430000.00,
             'Grade 5' => 2709000.00,
             'Grade 6' => 2991000.00,
             'Grade 7' => 3570000.00,
             'Grade 8' => 3936000.00,
+            'Grade 8-S' => 3936000.00,
             'Grade 9' => 4359000.00,
+            'Grade 9 CG' => 4575000.00,
             'Grade 10' => 5232000.00,
-            'Grade 11' => 6285000.00,
+            'Grade 11' => 6282000.00,
+            'Grade 11 Dosen' => 6285000.00,
             'Grade 12' => 7245000.00,
+            'Grade 12 CG' => 7542000.00,
             'Grade 13' => 9054000.00,
             'Grade 14' => 10869000.00,
             'Grade 15' => 13455000.00,
+            'Grade 16 WR3, WR4' => 16065000.00,
+            'Grade 16 WR1' => 16134000.00,
+            'Grade 16 WR2' => 16254000.00,
             'Grade 16' => 16134000.00,
             'Grade 17' => 21540000.00,
         ];

@@ -14,12 +14,9 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  pengajuanUPT,
-  periodeUPT,
-  unitKerja,
-  rupiah,
   type UPTPengajuan,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
+import { rupiah, generatePeriodeList } from "@/lib/format"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 export default function HitungPajakPage() {
@@ -30,6 +27,9 @@ export default function HitungPajakPage() {
   const [search, setSearch] = useState("")
   const [data, setData] = useState<UPTPengajuan[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Generate period list dynamically
+  const periodeUPT = useMemo(() => generatePeriodeList(12), [])
 
   // Fetch data from API
   useEffect(() => {
@@ -54,14 +54,12 @@ export default function HitungPajakPage() {
           }))
           setData(mappedData)
         } else {
-          // Fallback to dummy data
-          console.warn("API returned no data, using dummy fallback")
-          setData(pengajuanUPT)
+          setData([])
         }
       } catch (error) {
         console.error("Error fetching hitung pajak list:", error)
-        toast.error("Gagal memuat daftar hitung pajak. Menggunakan data dummy.")
-        setData(pengajuanUPT)
+        toast.error("Gagal memuat daftar pengajuan.")
+        setData([])
       } finally {
         setLoading(false)
       }
@@ -167,8 +165,8 @@ export default function HitungPajakPage() {
       {!loading && (
         <>
       <PageHeader
-        title="Hitung Pajak & P1 Netto"
-        subtitle="Hitung PPh Pasal 21 TER dan tetapkan P1 Netto dari pengajuan unit yang telah Terverifikasi."
+        title="Persetujuan Pengajuan P1 (Approval Bertingkat)"
+        subtitle="Approval bertingkat UPT atas hasil telaah verifikator, penetapan PPh 21 Golongan, serta pengesahan terbitnya Amprah & Slip Netto."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -223,9 +221,9 @@ export default function HitungPajakPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Unit Kerja</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {Array.from(new Set(data.map((item) => item.unit).filter(Boolean))).map((u) => (
+              <option key={u} value={u}>
+                {u}
               </option>
             ))}
           </select>

@@ -173,7 +173,8 @@ class PresensiController extends Controller
         $periodeKode = $periodeInfo['kode'];
         $periodeLabel = $periodeInfo['label'];
 
-        $report = PresensiReport::where('unit_id', $unitId)
+        $report = PresensiReport::with('approver')
+            ->where('unit_id', $unitId)
             ->where(function ($q) use ($periodeKode, $periodeLabel) {
                 $q->where('periode', $periodeKode)
                     ->orWhere('masa_file', $periodeLabel);
@@ -254,7 +255,7 @@ class PresensiController extends Controller
         }
 
         // Riwayat Impor
-        $riwayatImpor = PresensiReport::with('pegawai')
+        $riwayatImpor = PresensiReport::with(['pegawai', 'approver'])
             ->where('unit_id', $unitId)
             ->orderByDesc('dimpor_at')
             ->orderByDesc('id')
@@ -271,6 +272,10 @@ class PresensiController extends Controller
                     'oleh' => $rep->pegawai?->nama ?? 'Bidang Kepegawaian',
                     'durasi' => $rep->durasi ?? '1 detik',
                     'status' => $rep->jumlah_gagal > 0 ? 'Perlu Koreksi' : 'Berhasil',
+                    'status_approval' => $rep->status_approval ?? 'draft',
+                    'alasan_penolakan' => $rep->alasan_penolakan,
+                    'approved_by' => $rep->approver?->nama,
+                    'approved_at' => $rep->approved_at ? Carbon::parse($rep->approved_at)->translatedFormat('d M Y, H:i') : null,
                     'waktu' => $rep->dimpor_at ? Carbon::parse($rep->dimpor_at)->translatedFormat('d M Y, H:i') . ' WIB' : '-',
                 ];
             });
@@ -286,6 +291,14 @@ class PresensiController extends Controller
                 'pegawai' => $report ? (int) $report->jumlah_valid : $presensiRows->count(),
                 'error' => $report ? (int) $report->jumlah_gagal : 0,
                 'waktu' => $report?->dimpor_at ? Carbon::parse($report->dimpor_at)->translatedFormat('d M Y, H:i') . ' WIB' : now()->translatedFormat('d M Y, H:i') . ' WIB',
+            ],
+            'approval' => [
+                'status' => $report?->status_approval ?? 'draft',
+                'siap_perhitungan' => (bool) ($report?->siap_perhitungan ?? false),
+                'approved_by' => $report?->approver?->nama,
+                'approved_at' => $report?->approved_at ? Carbon::parse($report->approved_at)->translatedFormat('d M Y, H:i') . ' WIB' : null,
+                'catatan_approval' => $report?->catatan_approval,
+                'alasan_penolakan' => $report?->alasan_penolakan,
             ],
             'baris_gagal' => $barisGagalAktif,
             'data' => $presensiRows,
@@ -631,13 +644,18 @@ class PresensiController extends Controller
             }
 
             $durasiDetik = max(1, (int) round(microtime(true) - $startTime));
+            $statusFinal = count($barisGagal) > 0 ? 'perlu_koreksi' : 'valid';
+            $statusApproval = $statusFinal === 'valid' ? 'menunggu_approval' : 'draft';
+            
             $report->update([
-                'status' => count($barisGagal) > 0 ? 'perlu_koreksi' : 'valid',
+                'status' => $statusFinal,
+                'status_approval' => $statusApproval,
                 'jumlah_valid' => $validCount,
                 'jumlah_gagal' => count($barisGagal),
                 'baris_gagal' => $barisGagal,
                 'durasi' => "{$durasiDetik} detik",
                 'dimpor_at' => now(),
+                'siap_perhitungan' => false, // Not ready until approved
             ]);
 
             AuditLog::create([
@@ -652,15 +670,18 @@ class PresensiController extends Controller
                     'nama_file' => $namaFile,
                     'jumlah_valid' => $validCount,
                     'jumlah_gagal' => count($barisGagal),
+                    'status_approval' => $statusApproval,
                 ],
                 'alasan' => "Impor berkas presensi {$namaFile} periode {$periodeLabel}",
                 'dicatat_at' => now(),
             ]);
 
+            $message = count($barisGagal) > 0
+                ? "Impor selesai: {$validCount} baris valid terimpor, " . count($barisGagal) . " baris gagal dan perlu dikoreksi."
+                : "Impor presensi berhasil: {$validCount} pegawai terimpor. Menunggu persetujuan Penanggung Jawab Unit.";
+
             return response()->json([
-                'message' => count($barisGagal) > 0
-                    ? "Impor selesai: {$validCount} baris valid terimpor, " . count($barisGagal) . " baris gagal dan perlu dikoreksi."
-                    : "Impor presensi berhasil: {$validCount} pegawai terimpor, 0 baris gagal.",
+                'message' => $message,
                 'report' => [
                     'id' => $report->id,
                     'periode' => $periodeLabel,
@@ -670,6 +691,8 @@ class PresensiController extends Controller
                     'jumlah_gagal' => count($barisGagal),
                     'baris_gagal' => $barisGagal,
                     'status' => $report->status,
+                    'status_approval' => $statusApproval,
+                    'menunggu_approval' => $statusApproval === 'menunggu_approval',
                 ],
             ], 201);
         });

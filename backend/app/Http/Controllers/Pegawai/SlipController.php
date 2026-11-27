@@ -34,22 +34,31 @@ class SlipController extends Controller
         $netto = (float) ($item->p1_netto ?: max(0, $bruto - $pph21));
         $totalPersen = (float) ($item->total_persen_potongan ?: 0);
 
-        $rawKomponen = is_array($item->rincian_potongan) && count($item->rincian_potongan) > 0
+        $rawRincian = is_array($item->rincian_potongan) && count($item->rincian_potongan) > 0
             ? $item->rincian_potongan
-            : $this->defaultKomponen();
+            : null;
 
-        $komponen = array_map(function ($k) {
-            return [
-                'nama' => $k['nama'] ?? $k['Nama'] ?? '-',
-                'hari' => $k['hari'] ?? $k['JumlahHari'] ?? 0,
-                'tarif' => $k['tarif'] ?? $k['TarifPerHari'] ?? '0%',
-                'persen' => $k['persen'] ?? $k['PersenPengurangan'] ?? 0,
-                'Nama' => $k['Nama'] ?? $k['nama'] ?? '-',
-                'JumlahHari' => $k['JumlahHari'] ?? $k['hari'] ?? 0,
-                'TarifPerHari' => $k['TarifPerHari'] ?? $k['tarif'] ?? '0%',
-                'PersenPengurangan' => (float) str_replace(['%', ','], ['', '.'], (string) ($k['PersenPengurangan'] ?? $k['persen'] ?? 0)),
-            ];
-        }, $rawKomponen);
+        // Deteksi format: associative (dari PerhitunganController) vs flat (legacy)
+        if ($rawRincian && isset($rawRincian['tl'])) {
+            // Format associative → transform ke flat komponen array
+            $komponen = $this->transformRincianToKomponen($rawRincian);
+        } elseif ($rawRincian && isset($rawRincian[0])) {
+            // Format flat (sudah berupa array komponen)
+            $komponen = array_map(function ($k) {
+                return [
+                    'nama' => $k['nama'] ?? $k['Nama'] ?? '-',
+                    'hari' => $k['hari'] ?? $k['JumlahHari'] ?? 0,
+                    'tarif' => $k['tarif'] ?? $k['TarifPerHari'] ?? '0%',
+                    'persen' => $k['persen'] ?? $k['PersenPengurangan'] ?? 0,
+                    'Nama' => $k['Nama'] ?? $k['nama'] ?? '-',
+                    'JumlahHari' => $k['JumlahHari'] ?? $k['hari'] ?? 0,
+                    'TarifPerHari' => $k['TarifPerHari'] ?? $k['tarif'] ?? '0%',
+                    'PersenPengurangan' => (float) str_replace(['%', ','], ['', '.'], (string) ($k['PersenPengurangan'] ?? $k['persen'] ?? 0)),
+                ];
+            }, $rawRincian);
+        } else {
+            $komponen = $this->transformRincianToKomponen(null);
+        }
 
         return [
             'id' => $idSlip,
@@ -86,6 +95,8 @@ class SlipController extends Controller
             'PajakTER' => $pphTer,
             'TabPajak' => 0,
             'JumlahNetto' => $netto,
+            // Rincian tambahan untuk transparansi (dari rincian_potongan associative)
+            'rincianTambahan' => $this->extractRincianTambahan($rawRincian),
         ];
     }
 
@@ -213,12 +224,15 @@ class SlipController extends Controller
         $slipFormatted = $this->formatSlipItem($slip, $profilData, 0);
 
         if ($request->header('Accept') === 'application/pdf' || $request->has('download') || str_contains($request->header('Accept', ''), 'application/octet-stream')) {
-            $pdfContent = $this->generatePdfContent($slip, $slipFormatted);
-            $filename = 'Slip-P1-' . $slip->NIP . '-' . str_replace(' ', '-', $slipFormatted['Periode'] ?? $slip->periode) . '.pdf';
-            return response($pdfContent, 200, [
-                'Content-Type' => 'application/pdf',
+            $isPdf = class_exists(\Barryvdh\DomPDF\Facade\Pdf::class);
+            $content = $this->generatePdfContent($slip, $slipFormatted);
+            $ext = $isPdf ? '.pdf' : '.html';
+            $mime = $isPdf ? 'application/pdf' : 'text/html';
+            $filename = 'Slip-P1-' . $slip->NIP . '-' . str_replace(' ', '-', $slipFormatted['Periode'] ?? $slip->periode) . $ext;
+            return response($content, 200, [
+                'Content-Type' => $mime,
                 'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                'Content-Length' => strlen($pdfContent),
+                'Content-Length' => strlen($content),
             ]);
         }
 
@@ -299,12 +313,17 @@ class SlipController extends Controller
             'terbilang'            => trim($this->angkaKeTerbilang((int) round($nettoFloat))) . ' Rupiah',
             'waktuCetak'           => date('d/m/Y H:i:s'),
             'kodeVerifikasi'       => 'UA-SLIP-' . strtoupper(substr(md5($nomorSlip . $nip), 0, 12)),
+            'komponen'             => $data['komponen'] ?? $this->transformRincianToKomponen(null),
         ];
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.slip_p1', $viewData)
-            ->setPaper('a4', 'portrait');
+        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.slip_p1', $viewData)
+                ->setPaper('a4', 'portrait');
+            return $pdf->output();
+        }
 
-        return $pdf->output();
+        // Fallback: render view HTML jika package barryvdh/laravel-dompdf belum terpasang
+        return view('pdf.slip_p1', $viewData)->render();
     }
 
     private function angkaKeTerbilang(int $angka): string
@@ -348,6 +367,138 @@ class SlipController extends Controller
         $komponen[] = ['nama' => 'Cuti Karena Alasan Penting', 'hari' => 0, 'tarif' => '3%', 'persen' => '0%'];
         $komponen[] = ['nama' => 'Cuti Besar', 'hari' => 0, 'tarif' => '1,5%', 'persen' => '0%'];
         $komponen[] = ['nama' => 'Tidak Hadir Tanpa Keterangan', 'hari' => 0, 'tarif' => '5%', 'persen' => '0%'];
+
+        return $komponen;
+    }
+
+    /**
+     * Extract additional deduction info (CPNS, Tubel, Hukdis, SKP) for
+     * transparent display on the pegawai slip detail page.
+     */
+    private function extractRincianTambahan(?array $rincian): array
+    {
+        if (!$rincian) {
+            return [];
+        }
+
+        $tambahan = [];
+
+        if (!empty($rincian['is_cpns'])) {
+            $tambahan[] = [
+                'label' => 'CPNS / CPT-PTNBH',
+                'persen' => $rincian['cpns_persen'] ?? 20,
+                'nominal' => $rincian['cpns_rp'] ?? 0,
+            ];
+        }
+
+        if (!empty($rincian['is_tubel'])) {
+            $tambahan[] = [
+                'label' => 'Tugas Belajar',
+                'persen' => $rincian['tubel_persen'] ?? 25,
+                'nominal' => $rincian['tubel_rp'] ?? 0,
+            ];
+        }
+
+        if (($rincian['skp_pengurangan_persen'] ?? 0) > 0) {
+            $tambahan[] = [
+                'label' => 'Pengurangan SKP (Capaian ' . ($rincian['skp_capaian'] ?? '-') . '%)',
+                'persen' => $rincian['skp_pengurangan_persen'] ?? 0,
+                'nominal' => $rincian['skp_pengurangan_rp'] ?? 0,
+            ];
+        }
+
+        if (($rincian['persen_hukdis'] ?? 0) > 0) {
+            $tambahan[] = [
+                'label' => 'Hukuman Disiplin',
+                'persen' => $rincian['persen_hukdis'] ?? 0,
+                'nominal' => $rincian['potong_disiplin_rp'] ?? 0,
+            ];
+        }
+
+        return $tambahan;
+    }
+
+    /**
+     * Transformasi rincian_potongan associative (dari PerhitunganController)
+     * menjadi flat komponen array yang siap ditampilkan di frontend & PDF.
+     *
+     * Input format:
+     *   ['tl' => [0,0,...], 'psw' => [0,0,...], 'tarif_tl' => [0.25,0.5,...],
+     *    'cuti' => ['sakit'=>0, 'bersalin12'=>0, ...], ...]
+     *
+     * Output format:
+     *   [['Nama'=>'TL.1','JumlahHari'=>0,'TarifPerHari'=>'0,25%','PersenPengurangan'=>0], ...]
+     */
+    private function transformRincianToKomponen(?array $rincian): array
+    {
+        $tarifTLDefault = [0.25, 0.5, 1.0, 1.5, 2.0, 2.5];
+        $tarifTLLabels = ['0,25%', '0,5%', '1%', '1,5%', '2%', '2,5%'];
+        $cutiTarif = [
+            'sakit'      => ['nama' => 'Cuti Sakit',                        'tarif' => 1.0,  'label' => '1%'],
+            'bersalin12' => ['nama' => 'Cuti Bersalin ke-1 dan ke-2',       'tarif' => 1.0,  'label' => '1%'],
+            'bersalin3'  => ['nama' => 'Cuti Bersalin ke-3',                'tarif' => 2.0,  'label' => '2%'],
+            'bersalin4'  => ['nama' => 'Cuti Bersalin ke-4 dan seterusnya', 'tarif' => 3.0,  'label' => '3%'],
+            'penting'    => ['nama' => 'Cuti Karena Alasan Penting',        'tarif' => 3.0,  'label' => '3%'],
+            'besar'      => ['nama' => 'Cuti Besar',                        'tarif' => 1.5,  'label' => '1,5%'],
+            'alfa'       => ['nama' => 'Tidak Hadir Tanpa Keterangan',      'tarif' => 5.0,  'label' => '5%'],
+        ];
+
+        $tlCounts  = $rincian['tl'] ?? [0, 0, 0, 0, 0, 0];
+        $pswCounts = $rincian['psw'] ?? [0, 0, 0, 0, 0, 0];
+        $tarifArr  = $rincian['tarif_tl'] ?? $tarifTLDefault;
+        $cutiData  = $rincian['cuti'] ?? [];
+
+        $komponen = [];
+
+        // TL.1 s.d TL.6
+        for ($i = 0; $i < 6; $i++) {
+            $hari = (float) ($tlCounts[$i] ?? 0);
+            $tarif = (float) ($tarifArr[$i] ?? $tarifTLDefault[$i]);
+            $persen = round($hari * $tarif, 2);
+            $komponen[] = [
+                'nama'              => 'TL.' . ($i + 1),
+                'hari'              => $hari,
+                'tarif'             => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'persen'            => $persen . '%',
+                'Nama'              => 'TL.' . ($i + 1),
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'PersenPengurangan' => $persen,
+            ];
+        }
+
+        // PSW.1 s.d PSW.6
+        for ($i = 0; $i < 6; $i++) {
+            $hari = (float) ($pswCounts[$i] ?? 0);
+            $tarif = (float) ($tarifArr[$i] ?? $tarifTLDefault[$i]);
+            $persen = round($hari * $tarif, 2);
+            $komponen[] = [
+                'nama'              => 'PSW.' . ($i + 1),
+                'hari'              => $hari,
+                'tarif'             => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'persen'            => $persen . '%',
+                'Nama'              => 'PSW.' . ($i + 1),
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'PersenPengurangan' => $persen,
+            ];
+        }
+
+        // Cuti & Alfa
+        foreach ($cutiTarif as $key => $cfg) {
+            $hari = (float) ($cutiData[$key] ?? 0);
+            $persen = round($hari * $cfg['tarif'], 2);
+            $komponen[] = [
+                'nama'              => $cfg['nama'],
+                'hari'              => $hari,
+                'tarif'             => $cfg['label'],
+                'persen'            => $persen . '%',
+                'Nama'              => $cfg['nama'],
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $cfg['label'],
+                'PersenPengurangan' => $persen,
+            ];
+        }
 
         return $komponen;
     }

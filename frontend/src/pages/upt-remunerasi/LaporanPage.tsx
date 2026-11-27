@@ -9,9 +9,6 @@ import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Download, FileText, TrendingUp, PieChart, DollarSign, Clock, Loader2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 
-const rupiah = (n: number) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n)
-
 // Helper function untuk format tanggal
 const formatDate = (date: Date, format: string) => {
   const year = date.getFullYear()
@@ -31,18 +28,6 @@ export default function LaporanPage() {
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [reportData, setReportData] = useState<any>(null)
   const [activeReport, setActiveReport] = useState<string | null>(null)
-
-  const generatePeriodeOptions = () => {
-    const options = []
-    const now = new Date()
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-      const label = d.toLocaleDateString("id-ID", { year: "numeric", month: "long" })
-      options.push({ value: periode, label })
-    }
-    return options
-  }
 
   const handleDownloadCSV = async (type: string) => {
     const key = `download-${type}`

@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AreaTeks, Avatar, Bidang } from "@/components/kepegawaian/ui"
-import { GOLONGAN, JENIS_PEGAWAI, STATUS_PEGAWAI, kepeg, type JenisPegawai, type PegawaiKep, type StatusPegawai } from "@/data/dummy-kepegawaian"
+import { GOLONGAN, JENIS_PEGAWAI, STATUS_PEGAWAI, type JenisPegawai, type PegawaiKep, type StatusPegawai } from "@/types/kepegawaian"
 import { nonaktifkanPegawai, tambahPegawai, ubahPegawai, useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
+import { useAuth } from "@/context/AuthContext"
 
 // Dipasang bersyarat oleh halaman induk ({form && <FormPegawaiDialog ... />}) sehingga isiannya selalu segar.
 export function FormPegawaiDialog({ pegawai, onClose, onSuccess }: { pegawai?: PegawaiKep; onClose: () => void; onSuccess?: () => void }) {
+  const { akun } = useAuth()
   const { pegawai: daftar } = useKepeg()
   const ubah = !!pegawai
   const [nip, setNip] = useState(pegawai?.nip ?? "")
@@ -91,7 +93,7 @@ export function FormPegawaiDialog({ pegawai, onClose, onSuccess }: { pegawai?: P
             </Bidang>
             <Bidang label="Nama lengkap dan gelar"><Input value={nama} placeholder="Dr. Nama Pegawai, M.T." onChange={(e) => setNama(e.target.value)} /></Bidang>
             <Bidang label="Email institusi"><Input value={email} placeholder="nama@unand.ac.id" onChange={(e) => setEmail(e.target.value)} /></Bidang>
-            <Bidang label="Unit kerja"><Input value={kepeg.unit} disabled /></Bidang>
+            <Bidang label="Unit kerja"><Input value={akun?.unit_nama || "Unit Kerja"} disabled /></Bidang>
           </div>
           <p className="text-[10px] font-semibold tracking-wide text-muted-foreground">KEPEGAWAIAN</p>
           <div className="grid gap-4 sm:grid-cols-2">

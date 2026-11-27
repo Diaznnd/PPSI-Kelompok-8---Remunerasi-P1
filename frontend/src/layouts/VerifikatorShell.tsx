@@ -3,7 +3,9 @@ import { FileCheck2, FileText, Gauge, GitCompareArrows, History, LayoutGrid, Lis
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PERIODE_AKTIF_VERIFIKATOR, PERIODE_VERIFIKATOR, verifikator } from "@/data/dummy-verifikator"
+
+const PERIODE_LIST = ["Oktober 2026", "September 2026", "Agustus 2026", "Juli 2026"]
+const PERIODE_DEFAULT = "Oktober 2026"
 
 const NAV = [
   { to: "/verifikator/dashboard", label: "Beranda", icon: Gauge },
@@ -21,12 +23,13 @@ const NAV_PORTAL_PEGAWAI = [
 
 export default function VerifikatorShell() {
   const { akun } = useAuth()
-  const [periode, setPeriode] = useState(PERIODE_AKTIF_VERIFIKATOR)
+  const [periode, setPeriode] = useState(PERIODE_DEFAULT)
 
-  const nama = akun?.nama || verifikator.nama
+  const nama = akun?.nama || akun?.username || "Tim Verifikator"
   const inisial =
     nama
       .split(" ")
+      .filter((s) => s.length > 0)
       .map((s) => s[0])
       .slice(0, 2)
       .join("")
@@ -49,13 +52,21 @@ export default function VerifikatorShell() {
         unit: unitNama,
       }}
       headerLeft={
-        <>
-          <span className="hidden text-sm text-muted-foreground sm:inline">Periode:</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground hidden sm:inline">Periode:</span>
           <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{PERIODE_VERIFIKATOR.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODE_LIST.map((p) => (
+                <SelectItem key={p} value={p} className="text-xs">
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
-        </>
+        </div>
       }
     />
   )

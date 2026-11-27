@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Download, MessageSquare, Printer } from "lucide-react"
+import { ArrowLeft, Download, MessageSquare, Printer, AlertTriangle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -179,20 +179,58 @@ export default function SlipDetailPage() {
           </div>
         </Seksi>
 
+        {/* Rincian Tambahan: CPNS, Tubel, SKP, Hukdis */}
+        {slip.rincianTambahan && slip.rincianTambahan.length > 0 && (
+          <Seksi no="04" judul="Potongan Tambahan" desk="Potongan khusus berdasarkan status kepegawaian, SKP, atau hukuman disiplin.">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[28rem] text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Jenis Potongan</th>
+                    <th className="px-3 py-2 font-medium">Persentase</th>
+                    <th className="px-3 py-2 font-medium">Nominal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slip.rincianTambahan.map((r: any) => (
+                    <tr key={r.label} className="odd:bg-muted/40">
+                      <td className="px-3 py-3 font-semibold flex items-center gap-2">
+                        <AlertTriangle className="size-4 text-amber-500" />
+                        {r.label}
+                      </td>
+                      <td className="px-3 py-3">{r.persen}%</td>
+                      <td className="px-3 py-3 text-rose-700">- {rupiah(r.nominal || 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Seksi>
+        )}
+
         <Panel className="md:ml-auto md:w-[26rem]">
           <h2 className="font-semibold">Ringkasan Pembayaran</h2>
           <dl className="mt-4 space-y-2 text-xs">
-            {[
-              ["Jumlah Bruto", slip.JumlahBruto || 0],
-              ["Pajak PPh 21", slip.PajakPPh21 || 0],
-              ["Pajak TER", slip.PajakTER || 0],
-              ["Tab. Pajak", slip.TabPajak || 0],
-            ].map(([l, v]) => (
-              <div key={l} className="flex justify-between">
-                <dt className="text-muted-foreground">{l}</dt>
-                <dd className="font-semibold">{rupiah(v as number)}</dd>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Jumlah Bruto</dt>
+              <dd className="font-semibold">{rupiah(slip.JumlahBruto || 0)}</dd>
+            </div>
+            <div className="flex justify-between text-rose-700">
+              <dt className="text-muted-foreground">Potongan Pajak PPh 21</dt>
+              <dd className="font-semibold">- {rupiah(slip.PajakPPh21 || 0)}</dd>
+            </div>
+            {(slip.PajakTER || 0) > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <dt>Pajak TER</dt>
+                <dd className="font-semibold">{rupiah(slip.PajakTER || 0)}</dd>
               </div>
-            ))}
+            )}
+            {(slip.TabPajak || 0) > 0 && (
+              <div className="flex justify-between text-muted-foreground">
+                <dt>Tabungan Pajak</dt>
+                <dd className="font-semibold">{rupiah(slip.TabPajak || 0)}</dd>
+              </div>
+            )}
           </dl>
           <div className="mt-4 flex items-center justify-between rounded-lg bg-primary/10 p-4">
             <span className="text-[11px] font-semibold">JUMLAH NETTO YANG DITERIMA</span>

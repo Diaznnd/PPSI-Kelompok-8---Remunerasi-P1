@@ -27,7 +27,7 @@ export { Card, CardContent }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { rupiah } from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
 
 const legacyStatusClass: Record<string, string> = {
   Menunggu: "border-amber-200 bg-amber-100 text-amber-800",
@@ -327,6 +327,7 @@ export function ConfirmDialog({
   cancelText = "Batal",
   danger = false,
   loading = false,
+  disabled = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -339,6 +340,7 @@ export function ConfirmDialog({
   cancelText?: string
   danger?: boolean
   loading?: boolean
+  disabled?: boolean
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -351,7 +353,7 @@ export function ConfirmDialog({
         <DialogFooter className="mt-4 gap-2 sm:gap-0">
           <Button
             variant="outline"
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => {
               onCancel?.()
               onOpenChange(false)
@@ -361,7 +363,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={danger ? "destructive" : "default"}
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => {
               onConfirm()
             }}

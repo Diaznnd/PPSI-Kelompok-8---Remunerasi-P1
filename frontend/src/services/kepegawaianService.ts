@@ -147,6 +147,34 @@ export const kepegawaianService = {
     return res.data
   },
 
+  async getPresensiList(params?: { periode?: string; q?: string; status?: string }) {
+    return this.getPresensi(params)
+  },
+
+  async tambahHukuman(payload: any) {
+    return this.createHukuman(payload)
+  },
+
+  async buatUsulan(payload: any) {
+    if (payload instanceof FormData) {
+      const res = await api.post("/kepegawaian/usulan", payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      return res.data
+    }
+    return this.createUsulan(payload)
+  },
+
+  async ajukanUlangUsulan(id: string | number, payload: any) {
+    if (payload instanceof FormData) {
+      const res = await api.post(`/kepegawaian/usulan/${id}`, payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      return res.data
+    }
+    return this.updateUsulan(id, payload)
+  },
+
   /**
    * L3 (FR-07, NFR-11): Mengimpor berkas rekap presensi dan cuti/izin (.csv / .xlsx / .xls)
    */

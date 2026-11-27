@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import type { StatusVerif } from "@/data/dummy-verifikator"
+import type { StatusVerif } from "@/types/verifikator"
 
 const WARNA_STATUS: Record<StatusVerif, string> = {
   Diajukan: "border-sky-200 bg-sky-100 text-sky-800",

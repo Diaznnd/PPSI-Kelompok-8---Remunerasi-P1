@@ -28,7 +28,7 @@ export default function EksporDataPage() {
   const [periode, setPeriode] = useState(formatDate(new Date()))
   const [unitId, setUnitId] = useState<number | undefined>(undefined)
   const [tipeData, setTipeData] = useState("rekapitulasi")
-  const [statusUsulan, setStatusUsulan] = useState<string | undefined>(undefined)
+  const [statusUsulan] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const [exportHistory, setExportHistory] = useState<ExportHistory[]>([])
 

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { Stepper } from "@/components/bendahara/Stepper"
-import { RIWAYAT_UNIT, type RiwayatUnit } from "@/data/dummy-pjunit"
+import type { RiwayatUnit } from "@/types/pjunit"
 import { pjUnitService } from "@/services/pjUnitService"
 import { cn } from "@/lib/utils"
 
@@ -17,8 +17,8 @@ const warna = (s: string) => {
 }
 
 export default function StatusPengajuanUnitPage() {
-  const [riwayatList, setRiwayatList] = useState<RiwayatUnit[]>(RIWAYAT_UNIT)
-  const [periode, setPeriode] = useState(RIWAYAT_UNIT[0].periode)
+  const [riwayatList, setRiwayatList] = useState<RiwayatUnit[]>([])
+  const [periode, setPeriode] = useState("Oktober 2026")
   const [info, setInfo] = useState<RiwayatUnit | null>(null)
 
   useEffect(() => {
@@ -30,7 +30,15 @@ export default function StatusPengajuanUnitPage() {
     }).catch(() => {})
   }, [])
 
-  const r = riwayatList.find((x) => x.periode === periode) ?? riwayatList[0] ?? RIWAYAT_UNIT[0]
+  const r = riwayatList.find((x) => x.periode === periode) ?? riwayatList[0] ?? {
+    periode: "Oktober 2026",
+    status: "Diajukan" as const,
+    diajukan: "-",
+    keputusan: "-",
+    kembali: 0,
+    catatan: "",
+    terkini: "-",
+  }
 
   return (
     <>

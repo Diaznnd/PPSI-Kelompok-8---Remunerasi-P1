@@ -251,6 +251,11 @@ class UsulanJabatanController extends Controller
             })
             ->count();
 
+        // Rekap presensi terkini & status approval
+        $presensiTerkini = \App\Models\PresensiReport::where('unit_id', $unitId)
+            ->latest('id')
+            ->first();
+
         return response()->json([
             'unit_kerja' => $unitNama,
             'statistik' => [
@@ -262,6 +267,14 @@ class UsulanJabatanController extends Controller
                 'usulan_ditetapkan' => $usulanDitetapkan,
                 'pengaduan_menunggu' => $pengaduanMenunggu,
                 'hukuman_aktif' => $hukumanAktif,
+            ],
+            'presensi' => [
+                'exists' => $presensiTerkini !== null,
+                'periode' => $presensiTerkini?->masa_file ?? $presensiTerkini?->periode,
+                'status_approval' => $presensiTerkini?->status_approval ?? 'draft',
+                'siap_perhitungan' => (bool) ($presensiTerkini?->siap_perhitungan ?? false),
+                'alasan_penolakan' => $presensiTerkini?->alasan_penolakan,
+                'jumlah_valid' => (int) ($presensiTerkini?->jumlah_valid ?? 0),
             ],
         ]);
     }

@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PerhitunganController extends Controller
 {
@@ -63,8 +64,37 @@ class PerhitunganController extends Controller
         // Grade parameter
         $grades = Grade::orderBy('kode_grade')->get()->map(fn ($g) => [
             'grade' => $g->kode_grade,
-            'nilai' => (float) $g->nilai,
+            'nilai' => (float) ($g->nilai >= 50000 ? $g->nilai : $g->nilai * $pir),
         ]);
+
+        if ($grades->isEmpty()) {
+            $grades = collect([
+                ['grade' => 'Grade 17', 'nilai' => 21540000.00],
+                ['grade' => 'Grade 16 WR1', 'nilai' => 16134000.00],
+                ['grade' => 'Grade 16 WR2', 'nilai' => 16254000.00],
+                ['grade' => 'Grade 16 WR3, WR4', 'nilai' => 16065000.00],
+                ['grade' => 'Grade 15', 'nilai' => 13455000.00],
+                ['grade' => 'Grade 14', 'nilai' => 10869000.00],
+                ['grade' => 'Grade 13', 'nilai' => 9054000.00],
+                ['grade' => 'Grade 12 CG', 'nilai' => 7542000.00],
+                ['grade' => 'Grade 12', 'nilai' => 7245000.00],
+                ['grade' => 'Grade 11 Dosen', 'nilai' => 6285000.00],
+                ['grade' => 'Grade 11', 'nilai' => 6282000.00],
+                ['grade' => 'Grade 10', 'nilai' => 5232000.00],
+                ['grade' => 'Grade 9 CG', 'nilai' => 4575000.00],
+                ['grade' => 'Grade 9', 'nilai' => 4359000.00],
+                ['grade' => 'Grade 8 / 8-S (Kasubbag)', 'nilai' => 3936000.00],
+                ['grade' => 'Grade 7', 'nilai' => 3570000.00],
+                ['grade' => 'Grade 6', 'nilai' => 2991000.00],
+                ['grade' => 'Grade 5', 'nilai' => 2709000.00],
+                ['grade' => 'Grade 3', 'nilai' => 2430000.00],
+            ]);
+        } else if (!$grades->contains(fn ($g) => str_contains($g['grade'], '8-S'))) {
+            $grades->push([
+                'grade' => 'Grade 8-S (Kasubbag)',
+                'nilai' => 3936000.00,
+            ]);
+        }
 
         return response()->json([
             'unit' => [
@@ -73,15 +103,23 @@ class PerhitunganController extends Controller
             ],
             'periode' => $periode,
             'kesiapan' => [
-                ['label' => 'Presensi lengkap', 'siap' => $presensiReport !== null],
+                ['label' => 'Presensi lengkap terimpor', 'siap' => $presensiReport !== null && $presensiReport->status === 'valid'],
+                ['label' => 'Persetujuan Rekap Absensi oleh PJ Unit', 'siap' => (bool) ($presensiReport?->siap_perhitungan ?? false)],
                 ['label' => 'Pegawai aktif terdaftar', 'siap' => $totalPegawai > 0],
                 ['label' => 'Parameter remunerasi berlaku', 'siap' => true],
                 ['label' => 'Jabatan dan grade sesuai riwayat resmi', 'siap' => true],
+            ],
+            'presensi_status' => [
+                'terimpor' => $presensiReport !== null,
+                'status' => $presensiReport?->status,
+                'status_approval' => $presensiReport?->status_approval ?? 'belum_ada',
+                'siap_perhitungan' => (bool) ($presensiReport?->siap_perhitungan ?? false),
             ],
             'parameter' => [
                 'pir' => $pir,
                 'persen_p1' => $persenP1,
                 'grades' => $grades,
+                'grade' => $grades,
                 'tl_tier' => [
                     ['kode' => 'TL.1', 'rentang' => '0–60', 'tarif' => '0,25%', 'persen' => 0.25],
                     ['kode' => 'TL.2', 'rentang' => '61–75', 'tarif' => '0,5%', 'persen' => 0.5],
@@ -117,6 +155,49 @@ class PerhitunganController extends Controller
         }
 
         $periode = $request->input('periode', '2026-10');
+
+        // VALIDASI: Cek apakah presensi sudah di-approve
+        $presensiReport = PresensiReport::where('unit_id', $unit->id)
+            ->where('periode', $periode)
+            ->first();
+
+        if (!$presensiReport) {
+            return response()->json([
+                'message' => 'Rekap absensi periode ini belum diunggah oleh Kepegawaian.',
+                'blocked' => true,
+                'reason' => 'no_presensi',
+            ], 400);
+        }
+
+        if ($presensiReport->status !== 'valid') {
+            return response()->json([
+                'message' => 'Rekap absensi masih memiliki data yang perlu dikoreksi. Status: ' . $presensiReport->status,
+                'blocked' => true,
+                'reason' => 'invalid_presensi',
+            ], 400);
+        }
+
+        if ($presensiReport->status_approval !== 'disetujui') {
+            $statusMsg = [
+                'draft' => 'masih dalam draft',
+                'menunggu_approval' => 'menunggu persetujuan Penanggung Jawab Unit',
+                'ditolak' => 'ditolak oleh Penanggung Jawab Unit',
+            ];
+            return response()->json([
+                'message' => 'Rekap absensi ' . ($statusMsg[$presensiReport->status_approval] ?? 'belum disetujui') . '. Perhitungan tidak dapat dilanjutkan.',
+                'blocked' => true,
+                'reason' => 'not_approved',
+                'status_approval' => $presensiReport->status_approval,
+            ], 400);
+        }
+
+        if (!$presensiReport->siap_perhitungan) {
+            return response()->json([
+                'message' => 'Rekap absensi belum siap untuk perhitungan.',
+                'blocked' => true,
+                'reason' => 'not_ready',
+            ], 400);
+        }
 
         /** @var JsonResponse $response */
         $response = DB::transaction(function () use ($unit, $periode, $user): JsonResponse {
@@ -159,25 +240,26 @@ class PerhitunganController extends Controller
             foreach ($daftarPegawai as $p) {
                 // Tentukan nilai jabatan & grade
                 $usulan = $p->usulanJabatanTerakhir;
-                $gradeNilai = $usulan?->jabatan?->grade?->nilai ?? 5232000.00; // Standar Grade 10 jika belum ada
-                $nilaiJabatan = (float) $gradeNilai;
+                $namaJabatan = $usulan?->jabatan?->nama_jabatan ?? 'Pegawai';
+                $gradeKode = $usulan?->jabatan?->grade?->kode_grade ?? 'Grade 10';
+
+                // Pembeda Grade 8-S untuk Kepala Subbagian (Kasubbag Grade 8-S = Rp 3.936.000)
+                $isKasubbag = stripos($namaJabatan, 'Kepala Subbagian') !== false
+                    || stripos($namaJabatan, 'Kasubbag') !== false
+                    || $gradeKode === '8-S'
+                    || $gradeKode === 'Grade 8-S';
+
+                if ($isKasubbag) {
+                    $gradeKode = '8-S';
+                    $nilaiJabatan = 3936000.00;
+                } else {
+                    $gradeNilai = (float) ($usulan?->jabatan?->grade?->nilai ?? 5232000.00);
+                    $nilaiJabatan = $gradeNilai >= 50000 ? $gradeNilai : ($gradeNilai * $pir);
+                }
 
                 // Hitung P1 Gross: 40% x Nilai Jabatan
                 $p1Gross = round(($nilaiJabatan * $persenP1) / 100);
-
-                // Faktor status kepegawaian (Peraturan Rektor No. 2 Tahun 2026)
-                $persenStatus = 100.0;
-                $deskripsiStatus = 'PNS (100%)';
-                if ($p->status_tugas_belajar === 'tugas_belajar') {
-                    $persenStatus = 60.0;
-                    $deskripsiStatus = 'Tugas Belajar (60%)';
-                } elseif (in_array($p->status_kepegawaian, ['CPNS', 'CPT-PTNBH'])) {
-                    $persenStatus = 80.0;
-                    $deskripsiStatus = $p->status_kepegawaian . ' (80%)';
-                }
-
-                // P1 Base Pertimbangan
-                $p1Base = round(($p1Gross * $persenStatus) / 100);
+                $p1Base = $p1Gross;
 
                 // Ambil data presensi bulanan sesuai periode (atau terbaru)
                 $presensi = PresensiBulanan::where('NIP', $p->NIP)
@@ -222,13 +304,92 @@ class PerhitunganController extends Controller
                     $persenPSW += $cnt * $tarifTL[$i];
                 }
 
+                $persenCuti = ($cutiSakit * 1.0)
+                    + ($cutiBersalin12 * 1.0)
+                    + ($cutiBersalin3 * 2.0)
+                    + ($cutiBersalin4 * 3.0)
+                    + ($cutiPenting * 3.0)
+                    + ($cutiBesar * 1.5)
+                    + ($alfa * 5.0);
+
+                // Total Persen Pengurangan Kehadiran
+                $persenPotongHadir = $persenTL + $persenPSW + $persenCuti;
+
                 // Cek Aturan Fisik 50%
                 $totalFisik = $cutiSakit + $cutiBersalin12 + $cutiBersalin3 + $cutiBersalin4 + $cutiPenting + $cutiBesar + $alfa;
                 $persenFisik = ($hariKerja > 0) ? ($totalFisik / $hariKerja) * 100 : 0;
                 $remNol = $persenFisik > 50;
+                $alasanNol = $remNol ? 'Ketidakhadiran fisik di atas 50% hari kerja (' . round($persenFisik, 1) . '%)' : null;
 
-                // Total Persen Pengurangan Kehadiran
-                $persenPotongHadir = $persenTL + $persenPSW + $cutiSakit + $cutiBersalin12 + ($cutiBersalin3 * 2) + ($cutiBersalin4 * 3) + ($cutiPenting * 3) + ($cutiBesar * 1.5) + ($alfa * 5);
+                $penguranganHadirRp = round(($p1Gross * $persenPotongHadir) / 100);
+
+                // Faktor Khusus: CPNS (pengurangan 20%) & Tugas Belajar (pengurangan 25%)
+                $statusPeg = strtoupper(trim((string) ($p->status_kepegawaian ?? '')));
+                $isCpns = in_array($statusPeg, ['CPNS', 'CPT-PTNBH']) || str_contains($statusPeg, 'CPNS');
+                $cpnsPersen = $isCpns ? 20.0 : 0.0;
+                $cpnsRp = $isCpns ? round(($p1Gross * 20) / 100) : 0;
+
+                $isTubel = ($p->status_tugas_belajar === 'tugas_belajar'
+                    || stripos($statusPeg, 'TUGAS BELAJAR') !== false
+                    || stripos($statusPeg, 'TUBEL') !== false);
+                $tubelPersen = $isTubel ? 25.0 : 0.0;
+                $tubelRp = $isTubel ? round(($p1Gross * 25) / 100) : 0;
+
+                $deskripsiStatus = 'PNS (100%)';
+                if ($isTubel) {
+                    $deskripsiStatus = 'Tugas Belajar (Pengurangan 25%)';
+                } elseif ($isCpns) {
+                    $deskripsiStatus = ($p->status_kepegawaian ?: 'CPNS') . ' (Pengurangan 20%)';
+                }
+
+                // Penyetaraan Penilaian SKP / Kinerja / Perilaku Individu (Sheet FORM.xlsx)
+                $skpNilaiRaw = $p->status_skp;
+                $skpNilai = 100.0;
+                if (is_numeric($skpNilaiRaw)) {
+                    $skpNilai = (float) $skpNilaiRaw;
+                } elseif (is_string($skpNilaiRaw) && !empty($skpNilaiRaw)) {
+                    if (preg_match('/(\d+(\.\d+)?)/', $skpNilaiRaw, $m)) {
+                        $skpNilai = (float) $m[1];
+                    } elseif (stripos($skpNilaiRaw, 'sangat baik') !== false) {
+                        $skpNilai = 100.0;
+                    } elseif (stripos($skpNilaiRaw, 'baik') !== false) {
+                        $skpNilai = 90.0;
+                    } elseif (stripos($skpNilaiRaw, 'cukup') !== false) {
+                        $skpNilai = 75.0;
+                    } elseif (stripos($skpNilaiRaw, 'kurang') !== false) {
+                        $skpNilai = 50.0;
+                    }
+                }
+
+                if ($skpNilai >= 90) {
+                    $skpCapaian = 100.0;
+                } elseif ($skpNilai >= 85) {
+                    $skpCapaian = 95.0;
+                } elseif ($skpNilai >= 80) {
+                    $skpCapaian = 90.0;
+                } elseif ($skpNilai >= 75) {
+                    $skpCapaian = 85.0;
+                } elseif ($skpNilai >= 70) {
+                    $skpCapaian = 80.0;
+                } elseif ($skpNilai >= 65) {
+                    $skpCapaian = 75.0;
+                } elseif ($skpNilai >= 60) {
+                    $skpCapaian = 70.0;
+                } elseif ($skpNilai >= 55) {
+                    $skpCapaian = 65.0;
+                } elseif ($skpNilai >= 50) {
+                    $skpCapaian = 50.0;
+                } else {
+                    $skpCapaian = 0.0;
+                }
+
+                $skpPenguranganPersen = max(0.0, 100.0 - $skpCapaian);
+                $skpPenguranganRp = round(($p1Gross * $skpPenguranganPersen) / 100);
+
+                if ($skpCapaian === 0.0 && $skpNilai < 50) {
+                    $remNol = true;
+                    $alasanNol = $alasanNol ?: 'Capaian SKP di bawah 50% (tidak memenuhi syarat bayar)';
+                }
 
                 // Potongan Hukuman Disiplin
                 $hukdis = HukumanDisiplin::where('NIP', $p->NIP)
@@ -248,25 +409,77 @@ class PerhitunganController extends Controller
                         $persenHukdis = 25;
                     } elseif ($tingkatLower === 'berat') {
                         $persenHukdis = 100;
+                        $remNol = true;
+                        $alasanNol = $alasanNol ?: 'Hukuman Disiplin Tingkat Berat (Potongan 100%)';
                     }
                 }
+                $potonganDisiplinRp = round(($p1Gross * $persenHukdis) / 100);
 
-                // Perhitungan Rupiah
+                // Perhitungan Rupiah Bruto
                 if ($remNol) {
-                    $penguranganRp = $p1Base;
-                    $potonganDisiplinRp = 0;
+                    $totalPenguranganRp = $p1Gross;
                     $p1Bruto = 0;
-                    $alasanNol = 'Ketidakhadiran fisik di atas 50% hari kerja (' . round($persenFisik, 1) . '%)';
                 } else {
-                    $penguranganRp = round(($p1Base * $persenPotongHadir) / 100);
-                    $potonganDisiplinRp = round(($p1Base * $persenHukdis) / 100);
-                    $p1Bruto = max(0, $p1Base - $penguranganRp - $potonganDisiplinRp);
-                    $alasanNol = null;
+                    $totalPenguranganRp = $penguranganHadirRp + $cpnsRp + $tubelRp + $potonganDisiplinRp + $skpPenguranganRp;
+                    $p1Bruto = max(0, $p1Gross - $totalPenguranganRp);
                 }
 
-                // Pajak (PPh 21 / TER: acuan standar 5% bruto)
-                $pajakPPh21 = round($p1Bruto * 0.05);
+                // Pajak PPh 21 Berdasarkan Golongan Pegawai (Tabel Potongan Pajak Page 2)
+                // Gol IV: 15%, Gol III: 5%, Gol II: 5%, Gol I: 0%, Lainnya: 5%
+                $pangkatGol = (string) ($p->pangkat_golongan ?? '');
+                $tarifPersen = 5;
+                if (preg_match('/\bIV\/[a-e]\b/i', $pangkatGol) || str_contains($pangkatGol, 'IV/') || stripos($pangkatGol, 'Pembina') !== false) {
+                    $tarifPersen = 15;
+                } elseif (preg_match('/\bIII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'III/') || stripos($pangkatGol, 'Penata') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'II/') || stripos($pangkatGol, 'Pengatur') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bI\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'I/') || stripos($pangkatGol, 'Juru') !== false) {
+                    $tarifPersen = 0;
+                }
+
+                $pajakPPh21 = round(($p1Bruto * $tarifPersen) / 100);
                 $p1Netto = max(0, $p1Bruto - $pajakPPh21);
+
+                // Detail lengkap potongan untuk disimpan
+                $rincianPotongan = [
+                    'grade_kode' => $gradeKode,
+                    'is_kasubbag' => $isKasubbag,
+                    'tl' => $tlCount,
+                    'psw' => $pswCount,
+                    'tarif_tl' => $tarifTL,
+                    'persen_tl' => $persenTL,
+                    'persen_psw' => $persenPSW,
+                    'cuti' => [
+                        'sakit' => $cutiSakit,
+                        'bersalin12' => $cutiBersalin12,
+                        'bersalin3' => $cutiBersalin3,
+                        'bersalin4' => $cutiBersalin4,
+                        'penting' => $cutiPenting,
+                        'besar' => $cutiBesar,
+                        'alfa' => $alfa,
+                    ],
+                    'persen_cuti' => $persenCuti,
+                    'persen_potong_hadir' => $persenPotongHadir,
+                    'pengurangan_hadir_rp' => $penguranganHadirRp,
+                    'is_cpns' => $isCpns,
+                    'cpns_persen' => $cpnsPersen,
+                    'cpns_rp' => $cpnsRp,
+                    'is_tubel' => $isTubel,
+                    'tubel_persen' => $tubelPersen,
+                    'tubel_rp' => $tubelRp,
+                    'skp_nilai' => $skpNilai,
+                    'skp_capaian' => $skpCapaian,
+                    'skp_pengurangan_persen' => $skpPenguranganPersen,
+                    'skp_pengurangan_rp' => $skpPenguranganRp,
+                    'persen_hukdis' => $persenHukdis,
+                    'potong_disiplin_rp' => $potonganDisiplinRp,
+                    'total_pengurangan_rp' => $totalPenguranganRp,
+                    'tarif_pajak_persen' => $tarifPersen,
+                    'pajak_pph21' => $pajakPPh21,
+                    'p1_bruto' => $p1Bruto,
+                    'p1_netto' => $p1Netto,
+                ];
 
                 // Buat / Update rekaman HasilPerhitungan
                 HasilPerhitungan::updateOrCreate(
@@ -284,22 +497,24 @@ class PerhitunganController extends Controller
                         'pir' => $pir,
                         'persen_p1' => $persenP1,
                         'p1_gross' => $p1Gross,
-                        'persen_status' => $persenStatus,
-                        'p1_pertimbang' => $p1Base,
-                        'pengurangan_rp' => $penguranganRp,
+                        'persen_status' => 100.0 - $cpnsPersen - $tubelPersen,
+                        'p1_pertimbang' => $p1Gross,
+                        'pengurangan_rp' => $totalPenguranganRp,
                         'pengali_status' => $deskripsiStatus,
                         'persen_potongan_hadir' => $persenPotongHadir,
                         'persen_hukdis' => $persenHukdis,
-                        'total_persen_potongan' => $persenPotongHadir + $persenHukdis,
+                        'total_persen_potongan' => $persenPotongHadir + $cpnsPersen + $tubelPersen + $persenHukdis + $skpPenguranganPersen,
+                        'rincian_potongan' => $rincianPotongan,
                         'alasan_nol' => $alasanNol,
                         'p1_setelah_potongan' => $p1Bruto,
                         'pajak_pph21' => $pajakPPh21,
+                        'tab_pajak' => ['tarif_persen' => $tarifPersen, 'golongan' => $pangkatGol, 'pajak' => $pajakPPh21],
                         'p1_netto' => $p1Netto,
                     ]
                 );
 
-                $totalRemP1 += $p1Base;
-                $totalPengurangan += $penguranganRp;
+                $totalRemP1 += $p1Gross;
+                $totalPengurangan += $totalPenguranganRp;
                 $totalBruto += $p1Bruto;
                 $totalPajak += $pajakPPh21;
                 $totalNetto += $p1Netto;
@@ -360,47 +575,65 @@ class PerhitunganController extends Controller
         $hasilList = $query->get()->map(function ($h) {
             $p = $h->pegawai;
             $pr = $h->presensiBulanan;
+            $rinc = $h->rincian_potongan ?? [];
+
+            $tl = $rinc['tl'] ?? [
+                (float) ($pr?->s1 ?? 0),
+                (float) ($pr?->s2 ?? 0),
+                (float) ($pr?->s3 ?? 0),
+                (float) ($pr?->s4 ?? 0),
+                (float) ($pr?->s5 ?? 0),
+                (float) ($pr?->s6 ?? 0),
+            ];
+            $psw = $rinc['psw'] ?? [
+                (float) ($pr?->pw1 ?? 0),
+                (float) ($pr?->pw2 ?? 0),
+                (float) ($pr?->pw3 ?? 0),
+                (float) ($pr?->pw4 ?? 0),
+                (float) ($pr?->pw5 ?? 0),
+                (float) ($pr?->pw6 ?? 0),
+            ];
 
             return [
                 'nip' => $h->NIP,
                 'nama' => $p?->nama ?? $h->NIP,
                 'pangkat' => $p?->pangkat_golongan ?? '-',
                 'jabatan' => $h->usulanJabatan?->jabatan?->nama_jabatan ?? 'Pegawai',
-                'grade' => $h->usulanJabatan?->jabatan?->grade?->kode_grade ?? 'Grade 10',
+                'grade' => $rinc['grade_kode'] ?? ($h->usulanJabatan?->jabatan?->grade?->kode_grade ?? 'Grade 10'),
+                'isKasubbag' => $rinc['is_kasubbag'] ?? false,
                 'nilaiJabatan' => (float) $h->nilai_jabatan,
                 'pengali' => (float) ($h->persen_status ?? 100),
                 'pengali_status' => $h->pengali_status,
                 'hukdis' => (float) ($h->persen_hukdis ?? 0),
                 'pajak' => (float) ($h->pajak_pph21 ?? 0),
+                'tarifPajakPersen' => (float) ($rinc['tarif_pajak_persen'] ?? 5),
                 'npwp' => $p?->npwp ?? '-',
                 'remGrade' => (float) $h->nilai_jabatan,
                 'p1' => (float) $h->p1_gross,
-                'remP1' => (float) $h->p1_pertimbang,
+                'remP1' => (float) $h->p1_gross,
                 'totalPersen' => (float) $h->total_persen_potongan,
+                'persenPotongHadir' => (float) $h->persen_potongan_hadir,
+                'penguranganHadirRp' => (float) ($rinc['pengurangan_hadir_rp'] ?? $h->pengurangan_rp),
+                'isCpns' => (bool) ($rinc['is_cpns'] ?? false),
+                'cpnsPersen' => (float) ($rinc['cpns_persen'] ?? 0),
+                'cpnsRp' => (float) ($rinc['cpns_rp'] ?? 0),
+                'isTubel' => (bool) ($rinc['is_tubel'] ?? false),
+                'tubelPersen' => (float) ($rinc['tubel_persen'] ?? 0),
+                'tubelRp' => (float) ($rinc['tubel_rp'] ?? 0),
+                'skpNilai' => (float) ($rinc['skp_nilai'] ?? 100),
+                'skpCapaian' => (float) ($rinc['skp_capaian'] ?? 100),
+                'skpPenguranganRp' => (float) ($rinc['skp_pengurangan_rp'] ?? 0),
                 'pengurangan' => (float) $h->pengurangan_rp,
-                'potongDisiplin' => round(((float) $h->p1_pertimbang * (float) $h->persen_hukdis) / 100),
+                'potongDisiplin' => (float) ($rinc['potong_disiplin_rp'] ?? 0),
                 'bruto' => (float) $h->p1_setelah_potongan,
                 'netto' => (float) $h->p1_netto,
                 'remNol' => $h->alasan_nol !== null,
                 'alasan_nol' => $h->alasan_nol,
+                'rincianPotongan' => $rinc,
                 'presensi' => [
                     'hariKerja' => (float) ($pr?->hari_kerja ?? 22),
-                    'tl' => [
-                        (float) ($pr?->s1 ?? 0),
-                        (float) ($pr?->s2 ?? 0),
-                        (float) ($pr?->s3 ?? 0),
-                        (float) ($pr?->s4 ?? 0),
-                        (float) ($pr?->s5 ?? 0),
-                        (float) ($pr?->s6 ?? 0),
-                    ],
-                    'psw' => [
-                        (float) ($pr?->pw1 ?? 0),
-                        (float) ($pr?->pw2 ?? 0),
-                        (float) ($pr?->pw3 ?? 0),
-                        (float) ($pr?->pw4 ?? 0),
-                        (float) ($pr?->pw5 ?? 0),
-                        (float) ($pr?->pw6 ?? 0),
-                    ],
+                    'tl' => $tl,
+                    'psw' => $psw,
                     'sakit' => (float) ($pr?->cuti_sakit ?? 0),
                     'bersalin12' => (float) ($pr?->cuti_bersalin_1_2 ?? 0),
                     'bersalin3' => (float) ($pr?->cuti_bersalin_3 ?? 0),
@@ -447,6 +680,132 @@ class PerhitunganController extends Controller
             ],
             'data' => $hasilList,
         ]);
+    }
+
+    /**
+     * Ekspor Rekapitulasi Pengurangan Remunerasi P1 dalam Format Excel/CSV Resmi
+     */
+    public function eksporExcel(Request $request): StreamedResponse|JsonResponse
+    {
+        $user = $request->user();
+        $unit = $this->getBendaharaUnit($user);
+
+        if (!$unit) {
+            return response()->json(['message' => 'Akses ditolak.'], 403);
+        }
+
+        $periode = $request->query('periode', '2026-10');
+
+        $query = HasilPerhitungan::with(['pegawai.unitKerja', 'usulanJabatan.jabatan.grade', 'presensiBulanan'])
+            ->whereHas('pegawai', fn ($q) => $q->where('unit_id', $unit->id))
+            ->where('periode', $periode);
+
+        $data = $query->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="Rekapitulasi_Pengurangan_Remunerasi_P1_' . str_replace(' ', '_', $unit->nama) . '_' . $periode . '.csv"',
+        ];
+
+        return response()->stream(function () use ($data, $unit, $periode) {
+            $handle = fopen('php://output', 'w');
+            // Write UTF-8 BOM agar Excel membukanya dengan karakter dan encoding yang tepat
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            // Judul Dokumen Resmi (seperti di FORM.xlsx)
+            fputcsv($handle, ['REKAPITULASI PENGURANGAN REMUNERASI P1 UNIVERSITAS ANDALAS'], ';');
+            fputcsv($handle, ['Unit / Fakultas: ' . $unit->nama, 'Periode: ' . $periode], ';');
+            fputcsv($handle, [], ';');
+
+            // Baris Header Kolom Lengkap
+            fputcsv($handle, [
+                'No', 'Nama', 'NIP', 'Pangkat/Gol.', 'Nama Jabatan', 'Grade Jabatan', 'Unit/Fakultas',
+                'Remunerasi Per Grade Jabatan', 'Kehadiran (P1 40%)', 'P1/Bulan (Rp.)',
+                'TL.1 (0-60) Hari', 'TL.1 %', 'TL.2 (61-75) Hari', 'TL.2 %', 'TL.3 (76-90) Hari', 'TL.3 %',
+                'TL.4 (91-105) Hari', 'TL.4 %', 'TL.5 (106-120) Hari', 'TL.5 %', 'TL.6 (>120) Hari', 'TL.6 %',
+                'PSW.1 (0-60) Hari', 'PSW.1 %', 'PSW.2 (61-75) Hari', 'PSW.2 %', 'PSW.3 (76-90) Hari', 'PSW.3 %',
+                'PSW.4 (91-105) Hari', 'PSW.4 %', 'PSW.5 (106-120) Hari', 'PSW.5 %', 'PSW.6 (>120) Hari', 'PSW.6 %',
+                'Cuti Sakit Hari', 'Cuti Sakit %',
+                'Cuti Bersalin 1&2 Hari', 'Cuti Bersalin 1&2 %',
+                'Cuti Bersalin 3 Hari', 'Cuti Bersalin 3 %',
+                'Cuti Bersalin 4+ Hari', 'Cuti Bersalin 4+ %',
+                'Cuti Alasan Penting Hari', 'Cuti Alasan Penting %',
+                'Alfa Hari', 'Alfa %',
+                'Jumlah Ketidakhadiran (%)', 'Pengurangan Kehadiran (Rp)',
+                'CPNS (%)', 'Pengurangan CPNS (Rp)',
+                'Tugas Belajar (%)', 'Pengurangan Tugas Belajar (Rp)',
+                'SKP Capaian (%)', 'Pengurangan SKP (Rp)',
+                'Hukuman Disiplin (%)', 'Pengurangan Disiplin (Rp)',
+                'Total Pengurangan (Rp)', 'Jumlah Bruto (Rp)',
+                'Tarif PPh 21 (%)', 'Pungutan PPh 21 (Rp)', 'Jumlah Diterima / Netto (Rp)',
+            ], ';');
+
+            $no = 1;
+            foreach ($data as $h) {
+                $p = $h->pegawai;
+                $pr = $h->presensiBulanan;
+                $rinc = $h->rincian_potongan ?? [];
+
+                $tl = $rinc['tl'] ?? [(float)($pr?->s1 ?? 0), (float)($pr?->s2 ?? 0), (float)($pr?->s3 ?? 0), (float)($pr?->s4 ?? 0), (float)($pr?->s5 ?? 0), (float)($pr?->s6 ?? 0)];
+                $psw = $rinc['psw'] ?? [(float)($pr?->pw1 ?? 0), (float)($pr?->pw2 ?? 0), (float)($pr?->pw3 ?? 0), (float)($pr?->pw4 ?? 0), (float)($pr?->pw5 ?? 0), (float)($pr?->pw6 ?? 0)];
+                $sakit = (float)($pr?->cuti_sakit ?? 0);
+                $b12 = (float)($pr?->cuti_bersalin_1_2 ?? 0);
+                $b3 = (float)($pr?->cuti_bersalin_3 ?? 0);
+                $b4 = (float)($pr?->cuti_bersalin_4_plus ?? 0);
+                $penting = (float)($pr?->cuti_alasan_penting ?? 0);
+                $alfa = (float)($pr?->alfa ?? 0);
+
+                $tarifPajak = $rinc['tarif_pajak_persen'] ?? 5;
+
+                fputcsv($handle, [
+                    $no++,
+                    $p?->nama ?? '-',
+                    $h->NIP,
+                    $p?->pangkat_golongan ?? '-',
+                    $h->usulanJabatan?->jabatan?->nama_jabatan ?? 'Pegawai',
+                    $rinc['grade_kode'] ?? ($h->usulanJabatan?->jabatan?->grade?->kode_grade ?? 'Grade 10'),
+                    $unit->nama,
+                    (float)$h->nilai_jabatan,
+                    '40%',
+                    (float)$h->p1_gross,
+                    $tl[0], ($tl[0] * 0.25) . '%',
+                    $tl[1], ($tl[1] * 0.5) . '%',
+                    $tl[2], ($tl[2] * 1.0) . '%',
+                    $tl[3], ($tl[3] * 1.5) . '%',
+                    $tl[4], ($tl[4] * 2.0) . '%',
+                    $tl[5], ($tl[5] * 2.5) . '%',
+                    $psw[0], ($psw[0] * 0.25) . '%',
+                    $psw[1], ($psw[1] * 0.5) . '%',
+                    $psw[2], ($psw[2] * 1.0) . '%',
+                    $psw[3], ($psw[3] * 1.5) . '%',
+                    $psw[4], ($psw[4] * 2.0) . '%',
+                    $psw[5], ($psw[5] * 2.5) . '%',
+                    $sakit, ($sakit * 1.0) . '%',
+                    $b12, ($b12 * 1.0) . '%',
+                    $b3, ($b3 * 2.0) . '%',
+                    $b4, ($b4 * 3.0) . '%',
+                    $penting, ($penting * 3.0) . '%',
+                    $alfa, ($alfa * 5.0) . '%',
+                    (float)$h->persen_potongan_hadir . '%',
+                    $rinc['pengurangan_hadir_rp'] ?? (float)$h->pengurangan_rp,
+                    ($rinc['cpns_persen'] ?? 0) . '%',
+                    $rinc['cpns_rp'] ?? 0,
+                    ($rinc['tubel_persen'] ?? 0) . '%',
+                    $rinc['tubel_rp'] ?? 0,
+                    ($rinc['skp_capaian'] ?? 100) . '%',
+                    $rinc['skp_pengurangan_rp'] ?? 0,
+                    (float)$h->persen_hukdis . '%',
+                    $rinc['potong_disiplin_rp'] ?? 0,
+                    (float)$h->pengurangan_rp,
+                    (float)$h->p1_setelah_potongan,
+                    $tarifPajak . '%',
+                    (float)$h->pajak_pph21,
+                    (float)$h->p1_netto,
+                ], ';');
+            }
+
+            fclose($handle);
+        }, 200, $headers);
     }
 
     /**

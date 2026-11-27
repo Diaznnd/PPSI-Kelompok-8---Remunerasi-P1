@@ -15,7 +15,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { dummyPeriode, dummyPeriodeAktif, dummyHariTersisa } from "@/lib/dummy"
+
+const DAFTAR_PERIODE_APP = ["Oktober 2026", "September 2026", "Agustus 2026", "Juli 2026"]
+const PERIODE_AKTIF_APP = "Oktober 2026"
 
 // Map label menu ke ikon Lucide
 const menuIcon: Record<string, React.ReactNode> = {
@@ -38,7 +40,7 @@ const menuIcon: Record<string, React.ReactNode> = {
 export default function AppShell() {
   const { akun, logout } = useAuth()
   const [logoutOpen, setLogoutOpen] = useState(false)
-  const [periode, setPeriode] = useState(dummyPeriodeAktif)
+  const [periode, setPeriode] = useState(PERIODE_AKTIF_APP)
   if (!akun) return null
 
   const initials = akun.username
@@ -140,8 +142,7 @@ export default function AppShell() {
         {/* Periode aktif */}
         <div className="border-t border-sidebar-border px-5 py-4">
           <p className="text-[10px] text-sidebar-foreground/40">Periode aktif</p>
-          <p className="mt-0.5 text-sm font-semibold text-white">{dummyPeriodeAktif}</p>
-          <p className="text-[10px] text-sidebar-foreground/50">{dummyHariTersisa} hari tersisa</p>
+          <p className="mt-0.5 text-sm font-semibold text-white">{periode}</p>
         </div>
       </aside>
 
@@ -158,7 +159,7 @@ export default function AppShell() {
                 <ChevronDown size={14} />
               </SelectTrigger>
               <SelectContent>
-                {dummyPeriode.map((p) => (
+                {DAFTAR_PERIODE_APP.map((p) => (
                   <SelectItem key={p} value={p}>{p}</SelectItem>
                 ))}
               </SelectContent>
@@ -172,7 +173,7 @@ export default function AppShell() {
             </button>
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-white">
-                {initials || "RM"}
+                {initials || "UN"}
               </div>
               <div className="text-right">
                 <p className="text-sm font-semibold leading-tight">

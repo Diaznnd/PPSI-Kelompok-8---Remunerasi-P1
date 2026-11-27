@@ -103,13 +103,17 @@ export default function KonfirmasiPengajuanPage() {
         </Panel>
 
         <Panel>
-          <div className="grid gap-5 sm:grid-cols-3">
-            <Field label="Unit" value={unitNama} />
+          <div className="grid gap-5 sm:grid-cols-3 lg:grid-cols-4">
+            <Field label="Unit Kerja" value={unitNama} />
             <Field label="Periode" value="Oktober 2026" />
-            <Field label="Jumlah Pegawai" value={ringkasan.pegawai} />
-            <Field label="Total Remunerasi P1" value={rupiah(ringkasan.remP1)} />
-            <Field label="Total Pengurangan Kehadiran" value={rupiah(ringkasan.pengurangan)} />
+            <Field label="Jumlah Pegawai" value={`${ringkasan.pegawai} Pegawai`} />
+            <Field label="Total Remunerasi P1 (40%)" value={rupiah(ringkasan.remP1)} />
+            <Field label="Total Seluruh Pengurangan" value={rupiah(ringkasan.pengurangan)} />
             <Field label="Total Jumlah Bruto" value={rupiah(ringkasan.bruto)} />
+            <Field label="Total Pajak PPh 21" value={rupiah(ringkasan.pajak || 0)} />
+            <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-950/30">
+              <Field label="Total P1 Netto (Jumlah Diterima)" value={rupiah(ringkasan.netto || (ringkasan.bruto - (ringkasan.pajak || 0)))} />
+            </div>
           </div>
         </Panel>
 

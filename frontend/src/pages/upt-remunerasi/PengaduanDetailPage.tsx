@@ -21,7 +21,7 @@ import {
   Card,
   CardContent,
 } from "./components"
-import { type PengaduanStatus } from "@/data/dummy-upt"
+import { type PengaduanStatus } from "@/types/upt"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { useAuth } from "@/context/AuthContext"
 
@@ -55,7 +55,7 @@ export default function PengaduanDetailPage() {
     } catch (error: any) {
       console.error("Error loading pengaduan detail:", error)
       toast.error("Gagal memuat detail pengaduan")
-      // Don't set dummy fallback for detail page, just show error
+      // Data gagal dimuat dari server, tampilkan error
     } finally {
       setLoading(false)
     }

@@ -4,7 +4,6 @@ import { Building2, CalendarCheck, FileText, Gavel, House, LayoutGrid, MessageSq
 import { useAuth } from "@/context/AuthContext"
 import PortalShell, { type NavItem } from "@/layouts/PortalShell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { kepeg } from "@/data/dummy-kepegawaian"
 
 // Constants
 const DAFTAR_PERIODE = [
@@ -13,7 +12,7 @@ const DAFTAR_PERIODE = [
   "Agustus 2026",
   "Juli 2026",
   "Juni 2026",
-  "Mei 2026"
+  "Mei 2026",
 ]
 const PERIODE_AKTIF = "Oktober 2026"
 
@@ -39,16 +38,17 @@ export default function KepegawaianShell() {
   const { akun } = useAuth()
   const [periode, setPeriode] = useState(PERIODE_AKTIF)
 
-  const nama = akun?.nama || kepeg.nama
+  const nama = akun?.nama || akun?.username || "Bidang Kepegawaian"
   const inisial =
     nama
       .split(" ")
+      .filter((s) => s.length > 0)
       .map((s) => s[0])
       .slice(0, 2)
       .join("")
       .toUpperCase() || "KP"
 
-  const unitNama = akun?.unit_nama || "Fakultas Teknologi Informasi"
+  const unitNama = akun?.unit_nama || "Unit Kerja"
 
   return (
     <PortalShell
@@ -58,22 +58,30 @@ export default function KepegawaianShell() {
         title: "PORTAL MANDIRI PEGAWAI",
         items: NAV_PORTAL_PEGAWAI,
       }}
+      outletContext={{ periode }}
+      headerLeft={
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground hidden sm:inline">Periode:</span>
+          <Select value={periode} onValueChange={setPeriode}>
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DAFTAR_PERIODE.map((p) => (
+                <SelectItem key={p} value={p} className="text-xs">
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      }
       user={{
         nama,
         inisial,
-        peran: "Kepegawaian",
+        peran: "Bidang Kepegawaian",
         unit: unitNama,
       }}
-      outletContext={{ periode }}
-      headerLeft={
-        <>
-          <span className="hidden text-sm text-muted-foreground sm:inline">Periode:</span>
-          <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{DAFTAR_PERIODE.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-          </Select>
-        </>
-      }
     />
   )
 }

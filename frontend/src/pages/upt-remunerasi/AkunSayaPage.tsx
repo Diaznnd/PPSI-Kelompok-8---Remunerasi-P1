@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner"
 import { PageHeader, Button, Input, Card, CardContent } from "./components"
 import { Badge } from "@/components/ui/badge"
-import { profilSaya } from "@/data/dummy-upt-saya"
+import { useAuth } from "@/context/AuthContext"
 
 interface PasswordErrors {
   oldPass?: string
@@ -20,6 +20,15 @@ interface PasswordErrors {
 }
 
 export default function AkunSayaPage() {
+  const { akun: user } = useAuth()
+  const profilSaya = {
+    nama: user?.nama || user?.name || "Pegawai",
+    inisial: (user?.nama || user?.name || "P").substring(0, 2).toUpperCase(),
+    nip: user?.NIP || user?.nip || "-",
+    unit: user?.unit?.nama || user?.unit_kerja || "UPT Remunerasi",
+    email: user?.email || "-",
+    peranSistem: user?.peran || user?.role || "UPT Remunerasi",
+  }
   const [oldPass, setOldPass] = useState("")
   const [newPass, setNewPass] = useState("")
   const [confirmPass, setConfirmPass] = useState("")

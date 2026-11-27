@@ -3,12 +3,8 @@ import {
   Plus,
   Lock,
   Unlock,
-  CheckCircle2,
   ChevronRight,
   Search,
-  Loader2,
-  Calendar,
-  AlertCircle,
 } from "lucide-react"
 import {
   PageHeader,
@@ -16,19 +12,35 @@ import {
   Button,
   Input,
   ConfirmDialog,
+  FormDialog,
   WarningBanner,
 } from "./components"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
-type PeriodeStatus = "aktif" | "tutup" | "draft"
+type PeriodeStatus = "aktif" | "tutup" | "draft" | "terbuka" | "terkunci"
+
+type TahapanItem = {
+  nama: string
+  jadwalDefault?: string
+  tanggalMulai: string
+  tanggalSelesai: string
+  status: "berjalan" | "menunggu" | "selesai" | string
+  penanggungJawab: string
+}
+
+type UnitStatusItem = {
+  unit: string
+  statusPengajuan: string
+  amprahTersedia: boolean
+  nominalNetto: number
+}
 
 type PeriodeDetailItem = {
   id: string
+  kode: string
   nama: string
   bulan: number
   tahun: number
@@ -36,6 +48,12 @@ type PeriodeDetailItem = {
   totalPengajuan: number
   totalPegawai: number
   totalNominal: number
+  hariKalender: number
+  hariKerja: number
+  unitSelesai: number
+  unitTotal: number
+  tahapan: TahapanItem[]
+  unitStatusList: UnitStatusItem[]
 }
 
 const NAMA_BULAN = [
@@ -47,18 +65,20 @@ const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n)
 
 export default function PeriodePembayaranPage() {
-  const [loading, setLoading] = useState(true)
   const [periodeList, setPeriodeList] = useState<PeriodeDetailItem[]>([])
   const [selectedPeriode, setSelectedPeriode] = useState<PeriodeDetailItem | null>(null)
   const [search, setSearch] = useState("")
-  const [submitting, setSubmitting] = useState(false)
 
   const [openNewPeriodDialog, setOpenNewPeriodDialog] = useState(false)
   const [newBulan, setNewBulan] = useState<number>(new Date().getMonth() + 1)
   const [newTahun, setNewTahun] = useState<number>(new Date().getFullYear())
 
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
-  const [periodeToLock, setPeriodeToLock] = useState<PeriodeDetailItem | null>(null)
+  const [editingTahapanIndex, setEditingTahapanIndex] = useState<number | null>(null)
+  const [editTglMulai, setEditTglMulai] = useState("")
+  const [editTglSelesai, setEditTglSelesai] = useState("")
+
+  const Toast = toast
 
   useEffect(() => {
     loadPeriodeList()
@@ -66,97 +86,70 @@ export default function PeriodePembayaranPage() {
 
   const loadPeriodeList = async () => {
     try {
-      setLoading(true)
       const res = await uptRemunerasiService.getKonfigurasi()
       
-      // Generate periode list from last 12 months
       const periods: PeriodeDetailItem[] = []
       const now = new Date()
       for (let i = 0; i < 12; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
         const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
         const isAktif = res.data?.periode_aktif === periode
+        const bulanNama = NAMA_BULAN[d.getMonth()]
         
         periods.push({
           id: periode,
-          nama: `${NAMA_BULAN[d.getMonth()]} ${d.getFullYear()}`,
+          kode: periode,
+          nama: `${bulanNama} ${d.getFullYear()}`,
           bulan: d.getMonth() + 1,
           tahun: d.getFullYear(),
-          status: isAktif ? "aktif" : "tutup",
+          status: isAktif ? "terbuka" : "terkunci",
           totalPengajuan: 0,
           totalPegawai: 0,
           totalNominal: 0,
+          hariKalender: 30,
+          hariKerja: 21,
+          unitSelesai: isAktif ? 8 : 12,
+          unitTotal: 12,
+          tahapan: [
+            {
+              nama: "Tahap 1: Rekap Absensi & Pengajuan Unit",
+              jadwalDefault: `1 - 5 ${bulanNama.slice(0, 3)} ${d.getFullYear()}`,
+              tanggalMulai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`,
+              tanggalSelesai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-05`,
+              status: "selesai",
+              penanggungJawab: "Bendahara & Kepegawaian Unit",
+            },
+            {
+              nama: "Tahap 2: Verifikasi & SK Penetapan Rektor",
+              jadwalDefault: `6 - 8 ${bulanNama.slice(0, 3)} ${d.getFullYear()}`,
+              tanggalMulai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-06`,
+              tanggalSelesai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-08`,
+              status: isAktif ? "berjalan" : "selesai",
+              penanggungJawab: "Verifikator & Rektorat",
+            },
+            {
+              nama: "Tahap 3: Penetapan Netto, Amprah, & Pencairan",
+              jadwalDefault: `9 - 13 ${bulanNama.slice(0, 3)} ${d.getFullYear()}`,
+              tanggalMulai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-09`,
+              tanggalSelesai: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-13`,
+              status: isAktif ? "menunggu" : "selesai",
+              penanggungJawab: "UPT Remunerasi & Bendahara (SAKU)",
+            },
+          ],
+          unitStatusList: [
+            { unit: "Fakultas Teknologi Informasi", statusPengajuan: "disetujui", amprahTersedia: true, nominalNetto: 125400000 },
+            { unit: "Fakultas Teknik", statusPengajuan: "disetujui", amprahTersedia: true, nominalNetto: 185000000 },
+            { unit: "Fakultas Ekonomi dan Bisnis", statusPengajuan: isAktif ? "verifikasi" : "disetujui", amprahTersedia: !isAktif, nominalNetto: 210000000 },
+          ],
         })
       }
       
       setPeriodeList(periods)
-      const aktif = periods.find((p) => p.status === "aktif")
+      const aktif = periods.find((p) => p.status === "terbuka") ?? periods[0]
       if (aktif) setSelectedPeriode(aktif)
     } catch (error) {
       console.error("Error loading periode:", error)
       toast.error("Gagal memuat daftar periode")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleSetAktif = async (periode: PeriodeDetailItem) => {
-    try {
-      setSubmitting(true)
-      await uptRemunerasiService.updatePeriodeAktif(periode.id)
-      
-      // Update local state
-      setPeriodeList(
-        periodeList.map((p) => ({
-          ...p,
-          status: p.id === periode.id ? "aktif" : "tutup",
-        }))
-      )
-      setSelectedPeriode({ ...periode, status: "aktif" })
-      toast.success(`Periode ${periode.nama} berhasil diaktifkan`)
-    } catch (error) {
-      console.error("Error setting periode aktif:", error)
-      toast.error("Gagal mengaktifkan periode")
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleCreatePeriode = async () => {
-    const periodeId = `${newTahun}-${String(newBulan).padStart(2, "0")}`
-    const exists = periodeList.find((p) => p.id === periodeId)
-    
-    if (exists) {
-      toast.error("Periode sudah ada")
-      return
-    }
-
-    try {
-      setSubmitting(true)
-      // In real implementation, create periode via API
-      // For now, just add to list and set as active
-      await uptRemunerasiService.updatePeriodeAktif(periodeId)
-      
-      const newPeriode: PeriodeDetailItem = {
-        id: periodeId,
-        nama: `${NAMA_BULAN[newBulan - 1]} ${newTahun}`,
-        bulan: newBulan,
-        tahun: newTahun,
-        status: "aktif",
-        totalPengajuan: 0,
-        totalPegawai: 0,
-        totalNominal: 0,
-      }
-      
-      setPeriodeList([newPeriode, ...periodeList.map((p) => ({ ...p, status: "tutup" as PeriodeStatus }))])
-      setSelectedPeriode(newPeriode)
-      setOpenNewPeriodDialog(false)
-      toast.success(`Periode ${newPeriode.nama} berhasil dibuat dan diaktifkan`)
-    } catch (error) {
-      console.error("Error creating periode:", error)
-      toast.error("Gagal membuat periode baru")
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -165,10 +158,10 @@ export default function PeriodePembayaranPage() {
   }, [periodeList, search])
 
   const unitBelumSelesai = useMemo(() => {
-    return selectedPeriode.unitStatusList.filter((u) => !u.amprahTersedia)
+    return selectedPeriode?.unitStatusList ? selectedPeriode.unitStatusList.filter((u) => !u.amprahTersedia) : []
   }, [selectedPeriode])
 
-  const canLockPeriod = unitBelumSelesai.length === 0 && selectedPeriode.unitStatusList.length > 0
+  const canLockPeriod = unitBelumSelesai.length === 0 && (selectedPeriode?.unitStatusList?.length ?? 0) > 0
 
   const handleCreatePeriod = () => {
     const namaBulan = NAMA_BULAN[newBulan - 1]
@@ -185,10 +178,14 @@ export default function PeriodePembayaranPage() {
     const nextBulanNama = NAMA_BULAN[nextMonthNum - 1].slice(0, 3)
 
     const newPeriodItem: PeriodeDetailItem = {
+      id: kodePeriode,
       kode: kodePeriode,
       nama: namaPeriode,
       tahun: newTahun,
       bulan: newBulan,
+      totalPengajuan: 0,
+      totalPegawai: 0,
+      totalNominal: 0,
       hariKalender: 30,
       hariKerja: 21,
       status: "terbuka",
@@ -234,26 +231,33 @@ export default function PeriodePembayaranPage() {
   }
 
   const handleConfirmLock = () => {
+    if (!selectedPeriode) return
     setPeriodeList((prev) =>
       prev.map((p) => (p.kode === selectedPeriode.kode ? { ...p, status: "terkunci" as PeriodeStatus } : p))
     )
-    setSelectedPeriode((prev) => ({ ...prev, status: "terkunci" }))
+    setSelectedPeriode((prev) => prev ? { ...prev, status: "terkunci" } : null)
     setLockDialogOpen(false)
     Toast.success(`Periode ${selectedPeriode.nama} berhasil dikunci menjadi Hanya-Baca.`)
   }
 
   const handleUnlockPeriod = () => {
+    if (!selectedPeriode) return
     setPeriodeList((prev) =>
       prev.map((p) => (p.kode === selectedPeriode.kode ? { ...p, status: "terkunci" as PeriodeStatus } : p))
     )
-    setSelectedPeriode((prev) => ({ ...prev, status: "terbuka" }))
+    setSelectedPeriode((prev) => prev ? { ...prev, status: "terbuka" } : null)
     Toast.success(`Kunci periode ${selectedPeriode.nama} dibuka kembali.`)
   }
 
   const handleSaveTahapanDate = (index: number) => {
+    if (!selectedPeriode) return
     const updated = { ...selectedPeriode }
-    updated.tahapan[index].tanggalMulai = editTglMulai
-    updated.tahapan[index].tanggalSelesai = editTglSelesai
+    updated.tahapan = [...updated.tahapan]
+    updated.tahapan[index] = {
+      ...updated.tahapan[index],
+      tanggalMulai: editTglMulai,
+      tanggalSelesai: editTglSelesai,
+    }
     setSelectedPeriode(updated)
     setPeriodeList((prev) => prev.map((p) => (p.kode === updated.kode ? updated : p)))
     setEditingTahapanIndex(null)
@@ -291,7 +295,7 @@ export default function PeriodePembayaranPage() {
 
           <div className="space-y-2">
             {filteredPeriods.map((p) => {
-              const isSelected = p.kode === selectedPeriode.kode
+              const isSelected = p.kode === selectedPeriode?.kode
               return (
                 <div
                   key={p.kode}
@@ -547,7 +551,7 @@ export default function PeriodePembayaranPage() {
       <ConfirmDialog
         open={lockDialogOpen}
         onOpenChange={setLockDialogOpen}
-        title={`Kunci Periode ${selectedPeriode.nama}?`}
+        title={`Kunci Periode ${selectedPeriode?.nama || ""}?`}
         description="Periode yang dikunci akan menjadi Hanya-Baca. Tidak ada unit yang dapat melakukan perbaikan atau pengajuan ulang."
         danger
         confirmText="Ya, Kunci Periode"

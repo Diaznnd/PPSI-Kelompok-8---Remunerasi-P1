@@ -68,7 +68,6 @@ import JejakAuditUPTPage from "@/pages/upt-remunerasi/JejakAuditPage"
 import PeriodePembayaranPage from "@/pages/upt-remunerasi/PeriodePembayaranPage"
 import DokumenTemplatePage from "@/pages/upt-remunerasi/DokumenTemplatePage"
 import DataPegawaiUPTPage from "@/pages/upt-remunerasi/DataPegawaiPage"
-import NotifikasiSistemPage from "@/pages/upt-remunerasi/NotifikasiSistemPage"
 import AkunSayaPage from "@/pages/upt-remunerasi/AkunSayaPage"
 import PenetapanJabatanDetailPage from "@/pages/upt-remunerasi/PenetapanJabatanDetailPage"
 import UptPengaduanDetailPage from "@/pages/upt-remunerasi/PengaduanDetailPage"
@@ -85,6 +84,7 @@ import SlipSayaDetailPage from "@/pages/upt-remunerasi/saya/SlipSayaDetailPage"
 import PengaduanSayaPage from "@/pages/upt-remunerasi/saya/PengaduanSayaPage"
 import PengaduanSayaBaruPage from "@/pages/upt-remunerasi/saya/PengaduanSayaBaruPage"
 import PengaduanSayaDetailPage from "@/pages/upt-remunerasi/saya/PengaduanSayaDetailPage"
+import ApprovalPresensiPage from "@/pages/pj-unit/ApprovalPresensiPage"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
 
@@ -170,6 +170,7 @@ export const router = createBrowserRouter([
     shell: <PjUnitShell />,
     dashboard: <BerandaPjUnitPage />,
     halaman: [
+      { path: "pj-unit/approval-presensi", element: <ApprovalPresensiPage /> },
       { path: "pj-unit/pegawai", element: <DataPegawaiPage /> },
       { path: "pj-unit/status", element: <StatusPengajuanUnitPage /> },
       { path: "pj-unit/rekapitulasi", element: <RekapitulasiPage /> },

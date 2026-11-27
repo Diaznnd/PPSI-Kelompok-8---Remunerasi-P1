@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { PEGAWAI_UNIT, pjUnit, type PegawaiUnit } from "@/data/dummy-pjunit"
+import type { PegawaiUnit } from "@/types/pjunit"
 import { pjUnitService } from "@/services/pjUnitService"
 
 const UKURAN = 10
@@ -28,8 +28,8 @@ function Pilih({ label, nilai, ubah, semua, opsi, lebar }: { label: string; nila
 }
 
 export default function DataPegawaiPage() {
-  const [daftarPegawai, setDaftarPegawai] = useState<PegawaiUnit[]>(PEGAWAI_UNIT)
-  const [unitNama, setUnitNama] = useState(pjUnit.unit)
+  const [daftarPegawai, setDaftarPegawai] = useState<PegawaiUnit[]>([])
+  const [unitNama, setUnitNama] = useState("Unit Kerja")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
   const [jabatan, setJabatan] = useState("semua")
@@ -83,7 +83,7 @@ export default function DataPegawaiPage() {
             </div>
             <Pilih label="Status Kepegawaian" nilai={status} ubah={filter(setStatus)} semua="Semua status" opsi={unik(daftarPegawai.map((p) => p.status)).map((s) => [s, s])} lebar="w-40" />
             <Pilih label="Jabatan" nilai={jabatan} ubah={filter(setJabatan)} semua="Semua jabatan" opsi={unik(daftarPegawai.map((p) => p.jabatan)).map((s) => [s, s])} lebar="w-52" />
-            <Pilih label="Grade" nilai={grade} ubah={filter(setGrade)} semua="Semua grade" opsi={unik(daftarPegawai.map((p) => p.grade)).sort((a, b) => a - b).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
+            <Pilih label="Grade" nilai={grade} ubah={filter(setGrade)} semua="Semua grade" opsi={unik(daftarPegawai.map((p) => p.grade)).sort((a, b) => Number(a) - Number(b)).map((g) => [String(g), `Grade ${g}`])} lebar="w-36" />
             <Pilih label="Status P1" nilai={aktif} ubah={filter(setAktif)} semua="Semua" opsi={[["aktif", "Aktif"], ["nonaktif", "Tidak Aktif"]]} lebar="w-36" />
           </div>
 

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Field, PageHeading, Panel } from "@/components/pegawai/shared"
 import { FilterSelect, TH } from "@/components/verifikator/shared"
-import type { Audit } from "@/data/dummy-verifikator"
+import type { Audit } from "@/types/verifikator"
 import { useAudit } from "@/data/store-verifikator"
 
 const unik = (a: string[]) => [...new Set(a)]
