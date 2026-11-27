@@ -39,35 +39,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { notifikasiSistem, periodeUPT, uptRemunerasi, type NotifikasiItem } from "@/data/dummy-upt"
 import { PeriodeContext } from "@/pages/upt-remunerasi/components"
 
-export const NAV_UPT: { to: string; label: string; icon: LucideIcon; group: string }[] = [
-  { to: "/upt-remunerasi/dashboard", label: "Beranda UPT", icon: Gauge, group: "MENU UTAMA" },
-  { to: "/upt-remunerasi/beranda-saya", label: "Beranda Saya", icon: Home, group: "MENU UTAMA" },
-  { to: "/upt-remunerasi/slip-saya", label: "Slip P1 Saya", icon: Receipt, group: "MENU UTAMA" },
-  { to: "/upt-remunerasi/pengaduan-saya", label: "Pengaduan Saya", icon: MessageSquare, group: "MENU UTAMA" },
+export const NAV_UPT: { to: string; label: string; icon: LucideIcon; grup: string }[] = [
+  { to: "/upt-remunerasi/dashboard", label: "Beranda UPT", icon: Gauge, grup: "MENU UTAMA" },
+  { to: "/upt-remunerasi/beranda-saya", label: "Beranda Saya", icon: Home, grup: "MENU UTAMA" },
+  { to: "/upt-remunerasi/slip-saya", label: "Slip P1 Saya", icon: Receipt, grup: "MENU UTAMA" },
+  { to: "/upt-remunerasi/pengaduan-saya", label: "Pengaduan Saya", icon: MessageSquare, grup: "MENU UTAMA" },
 
-  { to: "/upt-remunerasi/status", label: "Pantau Status Pengajuan", icon: Activity, group: "PEMANTAUAN" },
-  { to: "/upt-remunerasi/rekapitulasi", label: "Rekapitulasi P1", icon: Table2, group: "PEMANTAUAN" },
-  { to: "/upt-remunerasi/pegawai", label: "Direktori Pegawai", icon: Users, group: "PEMANTAUAN" },
+  { to: "/upt-remunerasi/status", label: "Pantau Status Pengajuan", icon: Activity, grup: "PEMANTAUAN" },
+  { to: "/upt-remunerasi/rekapitulasi", label: "Rekapitulasi P1", icon: Table2, grup: "PEMANTAUAN" },
+  { to: "/upt-remunerasi/pegawai", label: "Direktori Pegawai", icon: Users, grup: "PEMANTAUAN" },
 
-  { to: "/upt-remunerasi/penetapan", label: "Penetapan Jabatan/Grade", icon: BriefcaseBusiness, group: "PROSES PEMBAYARAN" },
-  { to: "/upt-remunerasi/hitung", label: "Hitung Pajak & P1 Netto", icon: Calculator, group: "PROSES PEMBAYARAN" },
-  { to: "/upt-remunerasi/slip", label: "Penerbitan Slip P1", icon: Receipt, group: "PROSES PEMBAYARAN" },
-  { to: "/upt-remunerasi/amprah", label: "Amprah", icon: FileText, group: "PROSES PEMBAYARAN" },
+  { to: "/upt-remunerasi/penetapan", label: "Penetapan Jabatan/Grade", icon: BriefcaseBusiness, grup: "PROSES PEMBAYARAN" },
+  { to: "/upt-remunerasi/hitung", label: "Hitung Pajak & P1 Netto", icon: Calculator, grup: "PROSES PEMBAYARAN" },
+  { to: "/upt-remunerasi/slip", label: "Penerbitan Slip P1", icon: Receipt, grup: "PROSES PEMBAYARAN" },
+  { to: "/upt-remunerasi/amprah", label: "Amprah", icon: FileText, grup: "PROSES PEMBAYARAN" },
 
-  { to: "/upt-remunerasi/pengaduan", label: "Pengaduan Eskalasi", icon: AlertCircle, group: "LAYANAN" },
+  { to: "/upt-remunerasi/pengaduan", label: "Pengaduan Eskalasi", icon: AlertCircle, grup: "LAYANAN" },
 
-  { to: "/upt-remunerasi/unit", label: "Struktur Unit Kerja", icon: Landmark, group: "MASTER & PENGATURAN" },
-  { to: "/upt-remunerasi/master-grade", label: "Master Jabatan & Grade", icon: SheetIcon, group: "MASTER & PENGATURAN" },
-  { to: "/upt-remunerasi/parameter", label: "Parameter Remunerasi", icon: Settings2, group: "MASTER & PENGATURAN" },
-  { to: "/upt-remunerasi/periode", label: "Periode & Jadwal P1", icon: Calendar, group: "MASTER & PENGATURAN" },
-  { to: "/upt-remunerasi/dokumen", label: "Pengaturan Dokumen", icon: Files, group: "MASTER & PENGATURAN" },
+  { to: "/upt-remunerasi/unit", label: "Struktur Unit Kerja", icon: Landmark, grup: "MASTER & PENGATURAN" },
+  { to: "/upt-remunerasi/master-grade", label: "Master Jabatan & Grade", icon: SheetIcon, grup: "MASTER & PENGATURAN" },
+  { to: "/upt-remunerasi/parameter", label: "Parameter Remunerasi", icon: Settings2, grup: "MASTER & PENGATURAN" },
+  { to: "/upt-remunerasi/periode", label: "Periode & Jadwal P1", icon: Calendar, grup: "MASTER & PENGATURAN" },
+  { to: "/upt-remunerasi/dokumen", label: "Pengaturan Dokumen", icon: Files, grup: "MASTER & PENGATURAN" },
 
-  { to: "/upt-remunerasi/akun", label: "Akun & Hak Akses", icon: ShieldCheck, group: "PENGGUNA & HAK AKSES" },
+  { to: "/upt-remunerasi/akun", label: "Akun & Hak Akses", icon: ShieldCheck, grup: "PENGGUNA & HAK AKSES" },
 
-  { to: "/upt-remunerasi/audit", label: "Jejak Audit", icon: ClipboardList, group: "PENGAWASAN" },
-  { to: "/upt-remunerasi/notifikasi", label: "Notifikasi Sistem", icon: Bell, group: "PENGAWASAN" },
+  { to: "/upt-remunerasi/audit", label: "Jejak Audit", icon: ClipboardList, grup: "PENGAWASAN" },
+  { to: "/upt-remunerasi/notifikasi", label: "Notifikasi Sistem", icon: Bell, grup: "PENGAWASAN" },
 
-  { to: "/upt-remunerasi/akun-saya", label: "Profil & Kata Sandi", icon: User, group: "AKUN" },
+  { to: "/upt-remunerasi/akun-saya", label: "Profil & Kata Sandi", icon: User, grup: "AKUN" },
 ]
 
 export default function UptRemunerasiShell() {
