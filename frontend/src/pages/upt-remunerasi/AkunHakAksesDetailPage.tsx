@@ -141,7 +141,7 @@ export default function AkunHakAksesDetailPage() {
       kepegawaian: "Kepegawaian",
       bendahara: "Bendahara",
       verifikator: "Verifikator",
-      pj_unit: "PJ Unit",
+      penanggung_jawab: "PJ Unit",
     }
     return labels[peran] || peran
   }
@@ -153,7 +153,7 @@ export default function AkunHakAksesDetailPage() {
       kepegawaian: "bg-green-100 text-green-800",
       bendahara: "bg-yellow-100 text-yellow-800",
       verifikator: "bg-orange-100 text-orange-800",
-      pj_unit: "bg-pink-100 text-pink-800",
+      penanggung_jawab: "bg-pink-100 text-pink-800",
     }
     return colors[peran] || "bg-gray-100 text-gray-800"
   }

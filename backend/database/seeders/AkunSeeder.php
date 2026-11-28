@@ -37,7 +37,7 @@ class AkunSeeder extends Seeder
             [
                 'username' => '5',
                 'password' => '5',
-                'peran' => Peran::PJ_UNIT,
+                'peran' => Peran::PENANGGUNG_JAWAB,
             ],
             [
                 'username' => '6',

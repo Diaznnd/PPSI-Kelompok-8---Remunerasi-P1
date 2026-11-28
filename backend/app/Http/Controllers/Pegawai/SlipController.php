@@ -38,6 +38,55 @@ class SlipController extends Controller
             ? $item->rincian_potongan
             : null;
 
+        $presensi = $item->presensiBulanan;
+        $hariKerja = (int) ($presensi?->hari_kerja ?: 22);
+        $alfaVal = (float) ($presensi?->alfa > 0 ? $presensi->alfa : ($presensi?->tidak_hadir ?? 0));
+        $cutiVal = (float) ($presensi?->cuti_izin ?? (
+            ($presensi?->cuti_sakit ?? 0) +
+            ($presensi?->cuti_bersalin_1_2 ?? 0) +
+            ($presensi?->cuti_bersalin_3 ?? 0) +
+            ($presensi?->cuti_bersalin_4_plus ?? 0) +
+            ($presensi?->cuti_alasan_penting ?? 0) +
+            ($presensi?->cuti_besar ?? 0) +
+            ($presensi?->cuti_tahunan ?? 0)
+        ));
+        $hadirVal = (float) ($presensi?->hadir ?? max(0, $hariKerja - $alfaVal - $cutiVal));
+        $tlTotal = (int) (($presensi?->s1 ?? 0) + ($presensi?->s2 ?? 0) + ($presensi?->s3 ?? 0) + ($presensi?->s4 ?? 0) + ($presensi?->s5 ?? 0) + ($presensi?->s6 ?? 0));
+        $pswTotal = (int) (($presensi?->pw1 ?? 0) + ($presensi?->pw2 ?? 0) + ($presensi?->pw3 ?? 0) + ($presensi?->pw4 ?? 0) + ($presensi?->pw5 ?? 0) + ($presensi?->pw6 ?? 0));
+        $persenHadir = $hariKerja > 0 ? round(($hadirVal / $hariKerja) * 100, 1) : 100;
+
+        $absensiData = [
+            'hari_kerja' => $hariKerja,
+            'hadir' => $hadirVal,
+            'tidak_hadir' => $alfaVal,
+            'cuti_izin' => $cutiVal,
+            'cuti_sakit' => (float) ($presensi?->cuti_sakit ?? 0),
+            'cuti_tahunan' => (float) ($presensi?->cuti_tahunan ?? 0),
+            'cuti_alasan_penting' => (float) ($presensi?->cuti_alasan_penting ?? 0),
+            'cuti_besar' => (float) ($presensi?->cuti_besar ?? 0),
+            'cuti_bersalin' => (float) (($presensi?->cuti_bersalin_1_2 ?? 0) + ($presensi?->cuti_bersalin_3 ?? 0) + ($presensi?->cuti_bersalin_4_plus ?? 0)),
+            'tl_total' => $tlTotal,
+            'psw_total' => $pswTotal,
+            'tl_detail' => [
+                'TL.1' => (int) ($presensi?->s1 ?? 0),
+                'TL.2' => (int) ($presensi?->s2 ?? 0),
+                'TL.3' => (int) ($presensi?->s3 ?? 0),
+                'TL.4' => (int) ($presensi?->s4 ?? 0),
+                'TL.5' => (int) ($presensi?->s5 ?? 0),
+                'TL.6' => (int) ($presensi?->s6 ?? 0),
+            ],
+            'psw_detail' => [
+                'PSW.1' => (int) ($presensi?->pw1 ?? 0),
+                'PSW.2' => (int) ($presensi?->pw2 ?? 0),
+                'PSW.3' => (int) ($presensi?->pw3 ?? 0),
+                'PSW.4' => (int) ($presensi?->pw4 ?? 0),
+                'PSW.5' => (int) ($presensi?->pw5 ?? 0),
+                'PSW.6' => (int) ($presensi?->pw6 ?? 0),
+            ],
+            'persen_kehadiran' => $persenHadir,
+            'status_validasi' => $presensi?->status_validasi ?? 'valid',
+        ];
+
         // Deteksi format: associative (dari PerhitunganController) vs flat (legacy)
         if ($rawRincian && isset($rawRincian['tl'])) {
             // Format associative → transform ke flat komponen array
@@ -97,6 +146,7 @@ class SlipController extends Controller
             'JumlahNetto' => $netto,
             // Rincian tambahan untuk transparansi (dari rincian_potongan associative)
             'rincianTambahan' => $this->extractRincianTambahan($rawRincian),
+            'absensi' => $absensiData,
         ];
     }
 
@@ -116,9 +166,20 @@ class SlipController extends Controller
         $profilCtrl = new ProfilController();
         $profilData = $profilCtrl->show($request)->getData(true)['profil'] ?? [];
 
-        // Hanya ambil slip milik pegawai ini sendiri (FR-43 & NFR-04)
-        $slips = HasilPerhitungan::where('NIP', $nip)
-            ->with(['presensiBulanan', 'usulanJabatan.jabatan.grade'])
+        // Optimasi: Hanya ambil kolom yang diperlukan dan eager load relasi
+        $slips = HasilPerhitungan::select([
+                'id', 'NIP', 'periode', 'nilai_jabatan', 'persen_p1', 'persen_status',
+                'p1_pertimbang', 'p1_gross', 'pengurangan_rp', 'p1_setelah_potongan',
+                'pajak_pph21', 'pajak_ter', 'p1_netto', 'rincian_potongan',
+                'total_persen_potongan', 'presensi_bulanan_id', 'usulan_jabatan_id', 'created_at'
+            ])
+            ->with([
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6',
+                'usulanJabatan:id,pegawai_nip,jabatan_id',
+                'usulanJabatan.jabatan:id,nama_jabatan,grade_id',
+                'usulanJabatan.jabatan.grade:id,nama_grade'
+            ])
+            ->where('NIP', $nip)
             ->orderByDesc('id')
             ->get();
 
@@ -147,7 +208,9 @@ class SlipController extends Controller
 
         // Uji isolasi akses: Jika parameter id merujuk pada slip id yang ada di DB milik pegawai lain
         if (is_numeric($id)) {
-            $slipLain = HasilPerhitungan::where('id', (int) $id)->first();
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
             if ($slipLain && $slipLain->NIP !== $nip) {
                 return response()->json([
                     'status' => 'error',
@@ -156,8 +219,12 @@ class SlipController extends Controller
             }
         }
 
-        // Cari slip milik pegawai yang sedang login
-        $slip = HasilPerhitungan::where('NIP', $nip)
+        // Optimasi: Eager load relasi yang dibutuhkan untuk menghindari N+1 query
+        $slip = HasilPerhitungan::with([
+                'pegawai:NIP,nama,no_rekening,nama_bank',
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6'
+            ])
+            ->where('NIP', $nip)
             ->where(function ($q) use ($id) {
                 $q->where('periode', $id)
                     ->orWhere('id', $id);
@@ -196,7 +263,9 @@ class SlipController extends Controller
         $nip = $akun->NIP;
 
         if (is_numeric($id)) {
-            $slipLain = HasilPerhitungan::where('id', (int) $id)->first();
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
             if ($slipLain && $slipLain->NIP !== $nip) {
                 return response()->json([
                     'status' => 'error',
@@ -205,7 +274,12 @@ class SlipController extends Controller
             }
         }
 
-        $slip = HasilPerhitungan::where('NIP', $nip)
+        // Optimasi: Eager load relasi yang dibutuhkan untuk PDF generation
+        $slip = HasilPerhitungan::with([
+                'pegawai:NIP,nama,no_rekening,nama_bank',
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6'
+            ])
+            ->where('NIP', $nip)
             ->where(function ($q) use ($id) {
                 $q->where('periode', $id)
                     ->orWhere('id', $id);
@@ -275,8 +349,9 @@ class SlipController extends Controller
 
         // Ambil data rekap kehadiran & netto
         $presensi = $slip->presensiBulanan;
-        $hariKerja = (int) ($presensi?->hari_kerja ?? $presensi?->jumlah_hari_kerja ?? 22);
-        $hadir = (int) ($presensi?->hari_hadir ?? $presensi?->jumlah_hadir ?? ($hariKerja - 1));
+        $absensi = $data['absensi'] ?? [];
+        $hariKerja = (int) ($absensi['hari_kerja'] ?? $presensi?->hari_kerja ?? 22);
+        $hadir = (float) ($absensi['hadir'] ?? $presensi?->hadir ?? $presensi?->hari_hadir ?? $hariKerja);
         $tidakHadir = max(0, $hariKerja - $hadir);
         $nettoFloat = (float) ($data['JumlahNetto'] ?? 2488860);
 
@@ -312,8 +387,10 @@ class SlipController extends Controller
             'jumlahNetto'          => number_format($nettoFloat, 0, ',', '.'),
             'terbilang'            => trim($this->angkaKeTerbilang((int) round($nettoFloat))) . ' Rupiah',
             'waktuCetak'           => date('d/m/Y H:i:s'),
+            'tanggalSurat'         => \Illuminate\Support\Carbon::now()->translatedFormat('d F Y'),
             'kodeVerifikasi'       => 'UA-SLIP-' . strtoupper(substr(md5($nomorSlip . $nip), 0, 12)),
             'komponen'             => $data['komponen'] ?? $this->transformRincianToKomponen(null),
+            'absensi'              => $absensi,
         ];
 
         if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
@@ -324,6 +401,107 @@ class SlipController extends Controller
 
         // Fallback: render view HTML jika package barryvdh/laravel-dompdf belum terpasang
         return view('pdf.slip_p1', $viewData)->render();
+    }
+
+    /**
+     * Download Laporan Absensi Resmi (PDF) milik pegawai untuk periode slip terkait
+     */
+    public function downloadAbsensiPdf(Request $request, string $id): \Symfony\Component\HttpFoundation\Response
+    {
+        $akun = $request->user();
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
+        if (is_numeric($id)) {
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
+            if ($slipLain && $slipLain->NIP !== $nip) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Akses ditolak: Anda tidak memiliki wewenang mengakses laporan absensi pegawai lain.',
+                ], 403);
+            }
+        }
+
+        // Optimasi: Eager load semua relasi yang dibutuhkan untuk PDF absensi
+        $slip = HasilPerhitungan::with([
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6',
+                'usulanJabatan:id,pegawai_nip,jabatan_id',
+                'usulanJabatan.jabatan:id,nama_jabatan,grade_id',
+                'usulanJabatan.jabatan.grade:id,kode_grade,nama_grade',
+                'pegawai:NIP,nama,pangkat_golongan,unit_id',
+                'pegawai.unitKerja:id,nama'
+            ])
+            ->where('NIP', $nip)
+            ->where(function ($q) use ($id) {
+                $q->where('periode', $id)->orWhere('id', $id);
+            })
+            ->first();
+
+        if (!$slip) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data slip/absensi tidak ditemukan.',
+            ], 404);
+        }
+
+        $profilCtrl = new ProfilController();
+        $profilData = $profilCtrl->show($request)->getData(true)['profil'] ?? [];
+        $slipFormatted = $this->formatSlipItem($slip, $profilData, 0);
+        $pegawai = $slipFormatted['pegawai'] ?? [];
+
+        $logoBase64 = '';
+        foreach (glob(public_path('*logo*.{png,jpg,jpeg}'), GLOB_BRACE) ?: [] as $found) {
+            if (file_exists($found) && is_file($found)) {
+                $ext = strtolower(pathinfo($found, PATHINFO_EXTENSION));
+                $mime = ($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png';
+                $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($found));
+                break;
+            }
+        }
+
+        $unitKerja = $pegawai['NamaUnit'] ?? ($slip->pegawai?->unitKerja?->nama ?? 'Fakultas Teknologi Informasi');
+        $nomorSurat = 'ABS-P1/2026/' . (explode('-', (string) $slip->periode)[1] ?? '10') . '/' . sprintf('%04d', $slip->id);
+
+        $viewData = [
+            'logoBase64' => $logoBase64,
+            'nomorSurat' => $nomorSurat,
+            'periode' => $slipFormatted['Periode'] ?? $slip->periode,
+            'nama' => $pegawai['Nama'] ?? ($slip->pegawai?->nama ?? 'Pegawai'),
+            'nip' => $nip,
+            'pangkat' => $pegawai['Pangkat'] ?? ($slip->pegawai?->pangkat_golongan ?? '-'),
+            'jabatan' => $pegawai['NamaJabatan'] ?? ($slip->usulanJabatan?->jabatan?->nama_jabatan ?? '-'),
+            'grade' => $pegawai['KodeGrade'] ?? ($slip->usulanJabatan?->jabatan?->grade?->kode_grade ?? '-'),
+            'unitKerja' => $unitKerja,
+            'absensi' => $slipFormatted['absensi'],
+            'tanggalSurat' => \Illuminate\Support\Carbon::now()->translatedFormat('d F Y'),
+            'waktuCetak' => date('d/m/Y H:i:s'),
+            'kodeVerifikasi' => 'UA-ABS-' . strtoupper(substr(md5($nomorSurat . $nip), 0, 10)),
+        ];
+
+        $isPdf = class_exists(\Barryvdh\DomPDF\Facade\Pdf::class);
+        if ($isPdf) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.laporan_absensi', $viewData)->setPaper('a4', 'portrait');
+            $content = $pdf->output();
+            $ext = '.pdf';
+            $mime = 'application/pdf';
+        } else {
+            $content = view('pdf.laporan_absensi', $viewData)->render();
+            $ext = '.html';
+            $mime = 'text/html';
+        }
+
+        $filename = 'Laporan-Absensi-' . $slip->NIP . '-' . str_replace(' ', '-', $viewData['periode']) . $ext;
+        return response($content, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length' => strlen($content),
+        ]);
     }
 
     private function angkaKeTerbilang(int $angka): string

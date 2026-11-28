@@ -175,7 +175,8 @@ function ImporDialog({ onClose, onSelesai }: { onClose: () => void; onSelesai: (
 
 export default function PresensiCutiPage() {
   const s = useKepeg()
-  const { periode } = usePeriodeKepeg()
+  const { periode: periodeDefault } = usePeriodeKepeg()
+  const [periode, setPeriode] = useState(periodeDefault || "Oktober 2026")
   const [tab, setTab] = useState<"data" | "cuti" | "impor">("data")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
@@ -217,10 +218,22 @@ export default function PresensiCutiPage() {
   return (
     <>
       <PageHeading
-        title="Presensi & Cuti / Izin"
-        desc="Import rekap presensi dan cuti/izin bulanan sebagai dasar perhitungan P1"
+        title={`Presensi & Cuti / Izin — Periode ${periode}`}
+        desc={`Rekap presensi & cuti/izin bulanan yang digunakan sebagai dasar perhitungan P1 periode ${periode}. Data ini akan divalidasi oleh Penanggung Jawab Unit sebelum perhitungan dimulai.`}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={periode} onValueChange={setPeriode}>
+              <SelectTrigger className="w-44 text-xs">
+                <SelectValue placeholder="Pilih periode P1" />
+              </SelectTrigger>
+              <SelectContent>
+                {DAFTAR_PERIODE.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    P1: {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={() => toast.info("Fitur ekspor akan segera tersedia.")}><Download /> Export CSV</Button>
             <Button variant="outline" onClick={() => window.print()}><Printer /> Cetak</Button>
             <Button onClick={() => setImpor(true)}><Plus /> Import presensi</Button>

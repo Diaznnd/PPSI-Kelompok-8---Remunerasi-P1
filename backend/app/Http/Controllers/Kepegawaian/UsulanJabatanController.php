@@ -11,6 +11,7 @@ use App\Models\Jabatan;
 use App\Models\Pegawai;
 use App\Models\Pengaduan;
 use App\Models\RoleUnit;
+use App\Models\UnitKerja;
 use App\Models\UsulanJabatan;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -149,6 +150,10 @@ class UsulanJabatanController extends Controller
             'nama' => $pegawai?->nama ?? '-',
             'jenis_pegawai' => $pegawai?->jenis ?? '-',
             'unit_nama' => $u->unitKerja?->nama ?? '-',
+            'unit_baru_id' => $u->unit_baru_id,
+            'unit_baru_nama' => $u->unitBaru?->nama,
+            'effective_unit_id' => $u->effective_unit_id,
+            'effective_unit_nama' => $u->effectiveUnit?->nama,
             'jabatan_lama' => [
                 'id' => $jabatanLama?->id,
                 'nama' => $jabatanLama?->nama_jabatan ?? 'Belum ada',
@@ -457,49 +462,22 @@ class UsulanJabatanController extends Controller
         };
 
         // Resolusi jabatan_id dari master data UPT Remunerasi (FR-04 & FR-30)
+        // Penentuan grade dilakukan otomatis oleh sistem berdasarkan master Jabatan -> Grade
         $jabatanId = $request->input('jabatan_id');
         if (!$jabatanId && ($request->filled('jabatan_baru') || $request->filled('jabatanBaru'))) {
             $namaJabatan = trim((string) ($request->input('jabatan_baru') ?? $request->input('jabatanBaru')));
-            $gradeBaruInput = $request->input('grade_baru') ?? $request->input('gradeBaru');
+            $jabatanModel = Jabatan::with('grade')->where('nama_jabatan', $namaJabatan)->first();
 
-            // Cek apakah jabatan ada di master data Jabatan
-            $masterJabatanQuery = Jabatan::where('nama_jabatan', $namaJabatan);
-            if (!$masterJabatanQuery->exists()) {
+            if (!$jabatanModel) {
                 return response()->json([
                     'message' => "Jabatan '{$namaJabatan}' tidak terdaftar pada daftar master Jabatan UPT Remunerasi (FR-04 & FR-30).",
                     'errors' => [
-                        'jabatan_id' => ['Hanya jabatan dan grade pada daftar master UPT Remunerasi (FR-30) yang dapat dipilih.'],
+                        'jabatan_id' => ['Hanya jabatan pada daftar master UPT Remunerasi (FR-30) yang dapat dipilih.'],
                     ],
                 ], 422);
             }
 
-            if ($gradeBaruInput !== null && $gradeBaruInput !== '') {
-                $kodeGradeStr = is_numeric($gradeBaruInput) ? "Grade {$gradeBaruInput}" : (string) $gradeBaruInput;
-                $gradeModel = Grade::where('kode_grade', $kodeGradeStr)
-                    ->orWhere('kode_grade', (string) $gradeBaruInput)
-                    ->first();
-
-                if (!$gradeModel) {
-                    return response()->json([
-                        'message' => "Grade '{$gradeBaruInput}' tidak terdaftar pada daftar master Grade UPT Remunerasi (FR-04 & FR-30).",
-                        'errors' => [
-                            'grade' => ['Hanya grade pada daftar master UPT Remunerasi (FR-30) yang dapat dipilih.'],
-                        ],
-                    ], 422);
-                }
-
-                // Cari kombinasi jabatan + grade di master, atau buat tautan master jika nama jabatan sudah ada di master
-                $jabatanMatch = Jabatan::where('nama_jabatan', $namaJabatan)
-                    ->where('kode_id', $gradeModel->id)
-                    ->first();
-
-                if (!$jabatanMatch) {
-                    $jabatanMatch = Jabatan::where('nama_jabatan', $namaJabatan)->first();
-                }
-                $jabatanId = $jabatanMatch?->id;
-            } else {
-                $jabatanId = $masterJabatanQuery->first()?->id;
-            }
+            $jabatanId = $jabatanModel->id;
         }
 
         $request->merge([
@@ -512,6 +490,7 @@ class UsulanJabatanController extends Controller
         $validated = $request->validate([
             'NIP' => ['required', 'string', 'exists:pegawai,NIP'],
             'jabatan_id' => ['required', 'integer', 'exists:jabatan,id'],
+            'unit_baru_id' => ['nullable', 'integer', 'exists:unit_kerja,id'],
             'jenis_perubahan' => ['required', 'in:promosi,mutasi,kenaikan_grade,penyesuaian'],
             'tanggal_berlaku' => ['required', 'date'],
             'alasan' => ['nullable', 'string', 'max:2000'],
@@ -648,6 +627,14 @@ class UsulanJabatanController extends Controller
                 ],
             ];
 
+            // Logika pindah unit: minggu 1-2 (tgl 1-14) ikut P1 unit baru; minggu 3-4 (tgl 15+) tetap P1 unit lama
+            $unitBaruId = !empty($validated['unit_baru_id']) ? (int) $validated['unit_baru_id'] : null;
+            $effectiveUnitId = $pegawai->unit_id;
+            if ($unitBaruId && $unitBaruId !== (int) $pegawai->unit_id) {
+                $tglBerlaku = Carbon::parse($validated['tanggal_berlaku']);
+                $effectiveUnitId = $tglBerlaku->day <= 14 ? $unitBaruId : (int) $pegawai->unit_id;
+            }
+
             // FR-04: Usulan tersimpan dengan status 'diajukan' menunggu pemeriksaan Verifikator (bukan langsung riwayat resmi)
             $usulan = UsulanJabatan::create([
                 'dokumen_id' => $dokumenSkId,
@@ -655,6 +642,8 @@ class UsulanJabatanController extends Controller
                 'akun_id' => $user?->id,
                 'NIP' => $validated['NIP'],
                 'unit_id' => $pegawai->unit_id,
+                'unit_baru_id' => $unitBaruId,
+                'effective_unit_id' => $effectiveUnitId,
                 'jabatan_lama_id' => $usulanResmiTerakhir?->jabatan_id,
                 'jabatan_id' => $validated['jabatan_id'],
                 'nomor_urutan' => $nomorUrutan,
@@ -1035,9 +1024,12 @@ class UsulanJabatanController extends Controller
             ];
         });
 
+        $unitsList = UnitKerja::where('aktif', true)->orderBy('nama')->get(['id', 'kode', 'nama']);
+
         return response()->json([
             'data' => $jabatanList,
             'grades' => $gradeList,
+            'units' => $unitsList,
         ]);
     }
 }

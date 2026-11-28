@@ -54,7 +54,15 @@ export const pegawaiService = {
    * Mengunduh slip P1 format PDF
    */
   async downloadSlipPdf(id: string) {
-    const res = await api.get(`/pegawai/slip/${id}/pdf`, { responseType: "blob" })
+    const res = await api.get(`/pegawai/slip/${id}/pdf?download=1`, { responseType: "blob" })
+    return res.data
+  },
+
+  /**
+   * Mengunduh laporan absensi resmi format PDF
+   */
+  async downloadAbsensiPdf(id: string) {
+    const res = await api.get(`/pegawai/slip/${id}/absensi-pdf`, { responseType: "blob" })
     return res.data
   },
 

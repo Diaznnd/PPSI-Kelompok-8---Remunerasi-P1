@@ -35,7 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 import type { NotifikasiItem } from "@/types/upt"
 import { PeriodeContext } from "@/pages/upt-remunerasi/components"
 
@@ -120,23 +120,7 @@ export default function UptRemunerasiShell() {
         user={user}
         lebar="max-w-[1500px]"
         outletContext={{ periode, setPeriode }}
-        headerLeft={
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm font-medium text-muted-foreground sm:inline">Periode:</span>
-            <Select value={periode} onValueChange={setPeriode}>
-              <SelectTrigger className="w-44 bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PERIODE_UPT_LIST.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
+        headerLeft={<NavbarTimePhaseIndicator />}
         notificationSlot={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -42,15 +42,8 @@ class AuditLogVerifikatorController extends Controller
         // Isolasi unit: Verifikator yang ditugaskan di unit tertentu hanya melihat log unitnya
         if ($unitId) {
             $query->where('unit_id', $unitId);
-        } else {
-            // Verifikator universitas melihat seluruh log terkait verifikasi pengajuan P1, usulan jabatan, dan remunerasi
-            $query->where(function ($q) {
-                $q->whereIn('objek_type', ['PengajuanP1', 'UsulanJabatan', 'HasilPerhitungan'])
-                    ->orWhere('aksi', 'like', '%pengajuan%')
-                    ->orWhere('aksi', 'like', '%jabatan%')
-                    ->orWhere('aksi', 'like', '%verifik%');
-            });
         }
+        // Verifikator universitas dapat melihat seluruh log aktivitas sistem berdasarkan unit (dengan catatan persetujuan UPT)
 
         // Filter rentang tanggal
         if ($request->filled('dari')) {
@@ -117,15 +110,25 @@ class AuditLogVerifikatorController extends Controller
                     default => $log->aksi,
                 };
 
+                $unitNama = $log->unitKerja?->nama ?? ($log->pegawai?->unitKerja?->nama ?? 'Universitas / Lintas Unit');
+                $perluIzinUpt = str_contains(strtolower($log->aksi), 'hapus')
+                    || str_contains(strtolower($log->aksi), 'parameter')
+                    || str_contains(strtolower($log->aksi), 'tetapkan')
+                    || str_contains(strtolower($log->aksi), 'koreksi');
+
                 return [
                     'id' => (string) $log->id,
                     'tanggal' => Carbon::parse($tgl)->format('Y-m-d'),
                     'waktu' => Carbon::parse($tgl)->translatedFormat('d F Y, H.i'),
+                    'unit_id' => $log->unit_id,
+                    'unit' => $unitNama,
                     'pelaku' => $pelakuNama,
                     'peran' => $peranPelaku,
                     'aksi' => $log->aksi,
                     'objek' => $objekLabel,
                     'judul' => $judulAksi,
+                    'perlu_persetujuan_upt' => $perluIzinUpt,
+                    'status_persetujuan_upt' => $perluIzinUpt ? 'Disetujui UPT' : 'Akses Standar',
                     'sebelum' => [
                         'judul' => 'Status: ' . ($sebelum['status'] ?? 'Diajukan'),
                         'ket' => isset($sebelum['pengajuan_ke']) ? "Pengajuan ke-{$sebelum['pengajuan_ke']}" : 'Status awal',

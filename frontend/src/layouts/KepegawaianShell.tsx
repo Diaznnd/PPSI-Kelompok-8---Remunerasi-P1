@@ -1,19 +1,9 @@
-import { useState } from "react"
 import { useOutletContext } from "react-router-dom"
 import { Building2, CalendarCheck, FileText, Gavel, House, LayoutGrid, MessageSquare, Users } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell, { type NavItem } from "@/layouts/PortalShell"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 
-// Constants
-const DAFTAR_PERIODE = [
-  "Oktober 2026",
-  "September 2026",
-  "Agustus 2026",
-  "Juli 2026",
-  "Juni 2026",
-  "Mei 2026",
-]
 const PERIODE_AKTIF = "Oktober 2026"
 
 const NAV: NavItem[] = [
@@ -36,7 +26,7 @@ export const usePeriodeKepeg = () => useOutletContext<{ periode: string }>()
 
 export default function KepegawaianShell() {
   const { akun } = useAuth()
-  const [periode, setPeriode] = useState(PERIODE_AKTIF)
+  const periode = PERIODE_AKTIF
 
   const nama = akun?.nama || akun?.username || "Bidang Kepegawaian"
   const inisial =
@@ -59,23 +49,7 @@ export default function KepegawaianShell() {
         items: NAV_PORTAL_PEGAWAI,
       }}
       outletContext={{ periode }}
-      headerLeft={
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground hidden sm:inline">Periode:</span>
-          <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DAFTAR_PERIODE.map((p) => (
-                <SelectItem key={p} value={p} className="text-xs">
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      }
+      headerLeft={<NavbarTimePhaseIndicator />}
       user={{
         nama,
         inisial,

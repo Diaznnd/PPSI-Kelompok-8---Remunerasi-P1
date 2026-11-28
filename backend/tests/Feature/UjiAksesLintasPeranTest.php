@@ -66,7 +66,7 @@ class UjiAksesLintasPeranTest extends TestCase
         $bendahara = $this->getAkunByUsername('2', 'bendahara', '198204152008011002');
         $kepegawaian = $this->getAkunByUsername('3', 'kepegawaian', '198001012005011003');
         $verifikator = $this->getAkunByUsername('4', 'verifikator', '198204152008011002');
-        $pjUnit = $this->getAkunByUsername('5', 'pj_unit', '197505102000031001');
+        $pjUnit = $this->getAkunByUsername('5', 'penanggung_jawab', '197505102000031001');
         $upt = $this->getAkunByUsername('6', 'upt_remunerasi', '197001011995031001');
 
         // Pastikan tiap akun uji hanya memiliki peran utamanya di role_unit agar matriks murni teruji
@@ -83,7 +83,7 @@ class UjiAksesLintasPeranTest extends TestCase
                 ['GET', '/api/verifikator/pengajuan'],
                 ['GET', '/api/verifikator/audit'],
             ],
-            'pj_unit' => [
+            'penanggung_jawab' => [
                 ['GET', '/api/pj-unit/pegawai'],
                 ['GET', '/api/pj-unit/status'],
             ],
@@ -98,7 +98,7 @@ class UjiAksesLintasPeranTest extends TestCase
             'bendahara' => $bendahara,
             'kepegawaian' => $kepegawaian,
             'verifikator' => $verifikator,
-            'pj_unit' => $pjUnit,
+            'penanggung_jawab' => $pjUnit,
             'upt_remunerasi' => $upt,
         ];
 
@@ -137,7 +137,7 @@ class UjiAksesLintasPeranTest extends TestCase
             ['2', 'bendahara', '/api/bendahara/kesiapan'],
             ['3', 'kepegawaian', '/api/kepegawaian/pegawai'],
             ['4', 'verifikator', '/api/verifikator/pengajuan'],
-            ['5', 'pj_unit', '/api/pj-unit/pegawai'],
+            ['5', 'penanggung_jawab', '/api/pj-unit/pegawai'],
             ['6', 'upt_remunerasi', '/api/upt-remunerasi/dashboard'],
         ];
 
@@ -197,3 +197,4 @@ class UjiAksesLintasPeranTest extends TestCase
         ])->assertStatus(403);
     }
 }
+

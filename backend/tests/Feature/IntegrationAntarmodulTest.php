@@ -68,7 +68,7 @@ class IntegrationAntarmodulTest extends TestCase
             ?: Akun::where('peran', 'kepegawaian')->firstOrFail();
 
         $this->pjUnit = Akun::where('username', '5')->first()
-            ?: Akun::where('peran', 'pj_unit')->firstOrFail();
+            ?: Akun::where('peran', 'penanggung_jawab')->firstOrFail();
 
         $this->bendahara = Akun::where('username', '2')->first()
             ?: Akun::where('peran', 'bendahara')->firstOrFail();
@@ -106,9 +106,9 @@ class IntegrationAntarmodulTest extends TestCase
             ['unit_id' => $this->unit->id, 'aktif' => true]
         );
 
-        // Pastikan pj_unit terikat ke unit FTI
+        // Pastikan penanggung_jawab terikat ke unit FTI
         RoleUnit::updateOrCreate(
-            ['role_id' => $this->pjUnit->id, 'peran' => 'pj_unit'],
+            ['role_id' => $this->pjUnit->id, 'peran' => 'penanggung_jawab'],
             ['unit_id' => $this->unit->id, 'aktif' => true]
         );
     }

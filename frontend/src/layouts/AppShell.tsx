@@ -2,21 +2,18 @@ import { useState } from "react"
 import { NavLink, Outlet } from "react-router-dom"
 import {
   LayoutGrid, FileText, MessageCircle, LogOut,
-  Bell, ChevronDown, CalendarDays, Archive, BarChart3, History, Users,
+  Bell, Archive, BarChart3, History, Users,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import { menuByRole } from "./menu-by-role"
 import { labelPeran } from "@/lib/peran"
 import { Button } from "@/components/ui/button"
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 
-const DAFTAR_PERIODE_APP = ["Oktober 2026", "September 2026", "Agustus 2026", "Juli 2026"]
 const PERIODE_AKTIF_APP = "Oktober 2026"
 
 // Map label menu ke ikon Lucide
@@ -40,7 +37,7 @@ const menuIcon: Record<string, React.ReactNode> = {
 export default function AppShell() {
   const { akun, logout } = useAuth()
   const [logoutOpen, setLogoutOpen] = useState(false)
-  const [periode, setPeriode] = useState(PERIODE_AKTIF_APP)
+  const periode = PERIODE_AKTIF_APP
   if (!akun) return null
 
   const initials = akun.username
@@ -150,21 +147,7 @@ export default function AppShell() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <header className="flex h-14 flex-shrink-0 items-center justify-between border-b bg-white px-6">
-          <div className="flex items-center gap-2">
-            <CalendarDays size={15} className="text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Periode:</span>
-            <Select value={periode} onValueChange={setPeriode}>
-              <SelectTrigger className="h-8 w-auto gap-1 border-0 bg-transparent p-0 text-sm font-semibold shadow-none focus:ring-0">
-                <SelectValue />
-                <ChevronDown size={14} />
-              </SelectTrigger>
-              <SelectContent>
-                {DAFTAR_PERIODE_APP.map((p) => (
-                  <SelectItem key={p} value={p}>{p}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <NavbarTimePhaseIndicator />
 
           <div className="flex items-center gap-4">
             <button className="relative rounded-full p-1.5 hover:bg-muted">

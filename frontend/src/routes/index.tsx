@@ -11,6 +11,7 @@ import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
 import ExampleRBACPage from "@/pages/ExampleRBACPage"
 import UnauthorizedPage from "@/pages/UnauthorizedPage"
+import SystemErrorPage from "@/pages/SystemErrorPage"
 import { ProtectedRoute } from "@/components/rbac"
 import BerandaPage from "@/pages/pegawai/BerandaPage"
 import SlipListPage from "@/pages/pegawai/SlipListPage"
@@ -106,11 +107,12 @@ export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/unauthorized", element: <UnauthorizedPage /> },
   { path: "/pj_unit/*", element: <Navigate to="/pj-unit/dashboard" replace /> },
+  { path: "/penanggung_jawab/*", element: <Navigate to="/pj-unit/dashboard" replace /> },
   { path: "/upt_remunerasi/*", element: <Navigate to="/upt-remunerasi/dashboard" replace /> },
   {
     path: "/rbac-demo",
     element: (
-      <ProtectedRoute anyRole={["pegawai", "kepegawaian", "bendahara", "verifikator", "pj_unit", "upt_remunerasi"]}>
+      <ProtectedRoute anyRole={["pegawai", "kepegawaian", "bendahara", "verifikator", "penanggung_jawab", "upt_remunerasi"]}>
         <ExampleRBACPage />
       </ProtectedRoute>
     ),
@@ -166,7 +168,7 @@ export const router = createBrowserRouter([
       { path: "verifikator/audit", element: <JejakAuditPage /> },
     ],
   }),
-  grup("pj-unit", "pj_unit", {
+  grup("pj-unit", "penanggung_jawab", {
     shell: <PjUnitShell />,
     dashboard: <BerandaPjUnitPage />,
     halaman: [
@@ -219,4 +221,5 @@ export const router = createBrowserRouter([
       { path: "upt-remunerasi/pengaduan-saya/:id", element: <PengaduanSayaDetailPage /> },
     ],
   }),
+  { path: "*", element: <SystemErrorPage />, errorElement: <SystemErrorPage /> },
 ])

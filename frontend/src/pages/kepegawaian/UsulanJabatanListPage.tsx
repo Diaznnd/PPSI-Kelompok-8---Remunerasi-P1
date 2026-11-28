@@ -86,7 +86,7 @@ export default function UsulanJabatanListPage() {
     <>
       <PageHeading
         title="Usulan Jabatan/Grade"
-        desc="Ajukan perubahan jabatan dan grade berdasarkan master data UPT Remunerasi dan pantau statusnya hingga ditetapkan."
+        desc="Ajukan perubahan jabatan dan grade untuk periode penetapan mendatang. Usulan ditetapkan akan dipakai untuk perhitungan P1 bulan yang sesuai."
         action={<Button asChild><Link to="/kepegawaian/usulan/baru"><Plus /> Buat Usulan</Link></Button>}
       />
       <div className="space-y-5">

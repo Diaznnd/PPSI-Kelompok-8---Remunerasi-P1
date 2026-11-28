@@ -96,6 +96,35 @@ class PerhitunganController extends Controller
             ]);
         }
 
+        $presensiList = collect();
+        if ($presensiReport) {
+            $presensiList = PresensiBulanan::with('pegawai')
+                ->where('presensi_report_id', $presensiReport->id)
+                ->orderBy('NIP')
+                ->get()
+                ->map(function ($pb) {
+                    $totalTl = (int) $pb->s1 + (int) $pb->s2 + (int) $pb->s3 + (int) $pb->s4 + (int) $pb->s5 + (int) $pb->s6;
+                    $totalPsw = (int) $pb->pw1 + (int) $pb->pw2 + (int) $pb->pw3 + (int) $pb->pw4 + (int) $pb->pw5 + (int) $pb->pw6;
+                    $totalCuti = (float) $pb->cuti_sakit + (float) $pb->cuti_bersalin_1_2 + (float) $pb->cuti_bersalin_3 + (float) $pb->cuti_bersalin_4_plus + (float) $pb->cuti_alasan_penting + (float) $pb->cuti_besar + (float) $pb->cuti_tahunan;
+                    $alfa = (float) ($pb->alfa > 0 ? $pb->alfa : $pb->tidak_hadir);
+                    $hariKerja = (float) ($pb->hari_kerja > 0 ? $pb->hari_kerja : 22);
+                    $hadir = (float) ($pb->hadir ?? max(0, $hariKerja - $alfa - $totalCuti));
+
+                    return [
+                        'id' => $pb->id,
+                        'nip' => $pb->NIP,
+                        'nama' => $pb->pegawai?->nama ?? '-',
+                        'hari_kerja' => $hariKerja,
+                        'hadir' => $hadir,
+                        'tidak_hadir' => $alfa,
+                        'cuti_izin' => (float) ($pb->cuti_izin ?? $totalCuti),
+                        'tl' => $totalTl,
+                        'psw' => $totalPsw,
+                        'status_validasi' => $pb->status_validasi ?? 'valid',
+                    ];
+                });
+        }
+
         return response()->json([
             'unit' => [
                 'id' => $unit->id,
@@ -114,7 +143,10 @@ class PerhitunganController extends Controller
                 'status' => $presensiReport?->status,
                 'status_approval' => $presensiReport?->status_approval ?? 'belum_ada',
                 'siap_perhitungan' => (bool) ($presensiReport?->siap_perhitungan ?? false),
+                'file_nama' => $presensiReport?->file_nama,
+                'jumlah_baris' => $presensiList->count(),
             ],
+            'presensi_list' => $presensiList,
             'parameter' => [
                 'pir' => $pir,
                 'persen_p1' => $persenP1,

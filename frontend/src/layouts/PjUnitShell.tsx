@@ -1,6 +1,7 @@
 import { BarChart3, CheckCircle2, Eye, FileText, Gauge, History, LayoutGrid, MessageSquare, Users } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 import { Badge } from "@/components/ui/badge"
 
 const NAV_PJUNIT = [
@@ -46,9 +47,12 @@ export default function PjUnitShell() {
         unit: unitNama,
       }}
       headerLeft={
-        <Badge variant="secondary" className="gap-1.5 px-3 py-1 font-normal">
-          <Eye className="size-3.5" /> Mode Pemantauan: Hanya Baca
-        </Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <NavbarTimePhaseIndicator />
+          <Badge variant="secondary" className="gap-1.5 px-3 py-1 font-normal">
+            <Eye className="size-3.5" /> Mode Pemantauan: Hanya Baca
+          </Badge>
+        </div>
       }
     />
   )

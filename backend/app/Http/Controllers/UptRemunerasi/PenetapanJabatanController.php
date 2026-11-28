@@ -133,6 +133,12 @@ class PenetapanJabatanController extends Controller
             $usulan->catatan_verifikator = $validated['catatan'] ?? 'Telah ditetapkan secara resmi oleh UPT Remunerasi.';
             $usulan->save();
 
+            // Jika usulan disertai pindah unit, mutakhirkan unit pegawai sesuai effective_unit_id / unit_baru_id
+            if ($usulan->unit_baru_id && $usulan->pegawai) {
+                $targetUnitId = $usulan->effective_unit_id ?? $usulan->unit_baru_id;
+                $usulan->pegawai->update(['unit_id' => $targetUnitId]);
+            }
+
             // Perbarui hasil perhitungan aktif jika ada
             if ($usulan->jabatan?->grade) {
                 HasilPerhitungan::where('NIP', $usulan->NIP)

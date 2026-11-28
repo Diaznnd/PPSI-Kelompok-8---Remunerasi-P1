@@ -1,6 +1,7 @@
 import { Archive, BarChart3, FileText, Gauge, History, LayoutGrid, MessageSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 
 const NAV_BENDAHARA = [
   { to: "/bendahara/dashboard", label: "Beranda", icon: Gauge },
@@ -39,6 +40,7 @@ export default function BendaharaShell() {
         title: "PORTAL MANDIRI PEGAWAI",
         items: NAV_PORTAL_PEGAWAI,
       }}
+      headerLeft={<NavbarTimePhaseIndicator />}
       user={{
         nama,
         inisial,

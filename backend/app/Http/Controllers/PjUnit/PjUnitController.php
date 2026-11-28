@@ -33,7 +33,7 @@ class PjUnitController extends Controller
         }
 
         $roleUnit = RoleUnit::where('role_id', $user->id)
-            ->where('peran', 'pj_unit')
+            ->where('peran', 'penanggung_jawab')
             ->where('aktif', true)
             ->first();
 

@@ -25,7 +25,7 @@ class PenanggungJawabReadOnlyTest extends TestCase
 {
     private function getPjUnitUser(): Akun
     {
-        $pj = Akun::where('peran', 'pj_unit')->first()
+        $pj = Akun::where('peran', 'penanggung_jawab')->first()
             ?: Akun::where('username', '5')->first();
 
         if (!$pj) {
@@ -48,14 +48,14 @@ class PenanggungJawabReadOnlyTest extends TestCase
                 'NIP' => $pegawaiPj->NIP,
                 'username' => 'dekan_pj_test',
                 'password' => bcrypt('password123'),
-                'peran' => 'pj_unit',
+                'peran' => 'penanggung_jawab',
                 'aktif' => true,
             ]);
 
             RoleUnit::create([
                 'role_id' => $pj->id,
                 'unit_id' => $unit->id,
-                'peran' => 'pj_unit',
+                'peran' => 'penanggung_jawab',
                 'aktif' => true,
             ]);
         }

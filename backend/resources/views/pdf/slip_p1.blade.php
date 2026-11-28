@@ -247,8 +247,8 @@
             <td class="kop-text">
                 <div class="kop-line-1">KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI</div>
                 <div class="kop-line-2">UNIVERSITAS ANDALAS</div>
-                <div class="kop-line-3">SISTEM INFORMASI REMUNERASI KINERJA (SIREMUN-P1)</div>
-                <div class="kop-line-4">Alamat: Kampus Limau Manis, Padang, Sumatera Barat 25163 | Laman: unand.ac.id</div>
+                <div class="kop-line-3">{{ strtoupper($unitKerja ?: 'FAKULTAS TEKNOLOGI INFORMASI') }}</div>
+                <div class="kop-line-4">Kampus Limau Manis, Padang, Sumatera Barat 25163 | Laman: unand.ac.id</div>
             </td>
         </tr>
     </table>
@@ -456,24 +456,28 @@
         </table>
     </div>
 
-    <!-- FOOTER / PENGESAHAN ELEKTRONIK -->
-    <div class="footer-box">
-        <table class="footer-table">
-            <tr>
-                <td style="width: 65%; vertical-align: top;">
-                    <div class="footer-note">
-                        <strong>Catatan Resmi:</strong><br>
-                        1. Dokumen ini dicetak secara elektronik melalui sistem <strong>SIREMUN-P1 Universitas Andalas</strong> dan sah tanpa tanda tangan basah berdasarkan UU RI No. 11 Tahun 2008 tentang ITE.<br>
-                        2. Apabila terdapat ketidaksesuaian perhitungan pada slip ini, pegawai berhak mengajukan pengaduan resmi melalui Portal Pegawai SIREMUN-P1 dalam jangka waktu yang telah ditetapkan.
-                    </div>
-                </td>
-                <td style="width: 35%; vertical-align: top;" class="footer-meta">
-                    Dicetak pada: {{ $waktuCetak }} WIB<br>
-                    Kode Keaslian: <strong>{{ $kodeVerifikasi }}</strong>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <!-- PENGESAHAN RESMI & FOOTER -->
+    <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
+        <tr>
+            <td style="width: 55%; vertical-align: top;">
+                <div class="footer-note">
+                    <strong>Catatan Resmi:</strong><br>
+                    1. Dokumen ini diterbitkan resmi melalui sistem <strong>SIREMUN-P1 {{ $unitKerja }}</strong>.<br>
+                    2. Apabila terdapat ketidaksesuaian perhitungan, pegawai berhak mengajukan pengaduan resmi melalui Portal Pegawai SIREMUN-P1.
+                </div>
+                <div style="margin-top: 8px; font-size: 7pt; color: #475569; font-family: monospace;">
+                    Dicetak: {{ $waktuCetak }} WIB &bull; Kode: <strong>{{ $kodeVerifikasi }}</strong>
+                </div>
+            </td>
+            <td style="width: 45%; vertical-align: top; text-align: center; font-size: 8pt;">
+                <div>Padang, {{ $tanggalSurat ?? date('d F Y') }}</div>
+                <div style="font-weight: bold; margin-top: 2px;">Penanggung Jawab Remunerasi {{ $unitKerja }}</div>
+                <div style="height: 36px;"></div>
+                <div style="font-weight: bold; text-decoration: underline;">Dekan / Pimpinan Unit</div>
+                <div style="font-size: 7pt; color: #64748b;">Disahkan secara elektronik (SIREMUN-P1)</div>
+            </td>
+        </tr>
+    </table>
 
 </body>
 </html>

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { AlertTriangle, BarChart3, CheckCircle2, Clock, Loader2, ShieldAlert, XCircle } from "lucide-react"
+import { AlertTriangle, BarChart3, CheckCircle2, Clock, FileSpreadsheet, Loader2, Search, ShieldAlert, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { bendaharaService } from "@/services/bendaharaService"
@@ -40,6 +41,7 @@ export default function PersiapanPerhitunganPage() {
   const [periode, setPeriode] = useState("Oktober 2026")
   const [jalan, setJalan] = useState(false)
   const [kesiapanData, setKesiapanData] = useState<any>(null)
+  const [cariAbsensi, setCariAbsensi] = useState("")
   const [periodeList] = useState(["Oktober 2026", "September 2026", "Agustus 2026"])
 
   const periodeId = periode === "Oktober 2026" ? "2026-10" : periode === "September 2026" ? "2026-09" : "2026-08"
@@ -63,6 +65,16 @@ export default function PersiapanPerhitunganPage() {
   const presensiStatus = kesiapanData?.presensi_status
   const statusApproval: string = presensiStatus?.status_approval || (kesiapanData?.kesiapan?.find((c: any) => c.label?.includes("PJ Unit"))?.siap ? "disetujui" : "belum_ada")
   const siapHitung: boolean = Boolean(presensiStatus?.siap_perhitungan ?? kesiapanData?.kesiapan?.every((c: any) => c.siap))
+  const presensiList: any[] = Array.isArray(kesiapanData?.presensi_list) ? kesiapanData.presensi_list : []
+  const filteredPresensi = useMemo(() => {
+    const q = cariAbsensi.trim().toLowerCase()
+    if (!q) return presensiList
+    return presensiList.filter(
+      (item) =>
+        String(item.nama || "").toLowerCase().includes(q) ||
+        String(item.nip || "").toLowerCase().includes(q)
+    )
+  }, [presensiList, cariAbsensi])
 
   async function jalankan() {
     if (!siapHitung) {
@@ -356,6 +368,84 @@ export default function PersiapanPerhitunganPage() {
                 </div>
               </Panel>
             </div>
+
+            {/* Rekap Absensi yang Diunggah Kepegawaian */}
+            <Panel className="p-0">
+              <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="size-4 text-primary" />
+                    <h2 className="font-semibold text-sm">Rekap Absensi Pegawai (Unggahan Kepegawaian)</h2>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Data kehadiran periode <strong>{periode}</strong> yang menjadi dasar perhitungan P1
+                    {presensiStatus?.file_nama ? ` • Berkas: ${presensiStatus.file_nama}` : ""}.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    {presensiList.length} Pegawai
+                  </Badge>
+                  <div className="relative w-56">
+                    <Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                    <Input
+                      value={cariAbsensi}
+                      onChange={(e) => setCariAbsensi(e.target.value)}
+                      placeholder="Cari NIP atau nama..."
+                      className="h-8 pl-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {presensiList.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                  Belum ada data absensi pegawai yang diunggah oleh Bidang Kepegawaian untuk periode {periode}.
+                </div>
+              ) : (
+                <div className="max-h-80 overflow-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-muted/70 text-[11px] font-semibold text-muted-foreground backdrop-blur">
+                      <tr>
+                        <th className="px-4 py-2.5">NIP</th>
+                        <th className="px-4 py-2.5">Nama Pegawai</th>
+                        <th className="px-3 py-2.5 text-center">Hari Kerja</th>
+                        <th className="px-3 py-2.5 text-center">Hadir</th>
+                        <th className="px-3 py-2.5 text-center">Cuti/Izin</th>
+                        <th className="px-3 py-2.5 text-center">Alfa</th>
+                        <th className="px-3 py-2.5 text-center">TL / PSW</th>
+                        <th className="px-4 py-2.5 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {filteredPresensi.map((row) => (
+                        <tr key={row.id || row.nip} className="hover:bg-muted/30">
+                          <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground">{row.nip}</td>
+                          <td className="px-4 py-2 font-medium text-foreground">{row.nama}</td>
+                          <td className="px-3 py-2 text-center">{row.hari_kerja}</td>
+                          <td className="px-3 py-2 text-center font-medium text-emerald-700 dark:text-emerald-400">{row.hadir}</td>
+                          <td className="px-3 py-2 text-center">{row.cuti_izin}</td>
+                          <td className="px-3 py-2 text-center text-rose-600 dark:text-rose-400">{row.tidak_hadir}</td>
+                          <td className="px-3 py-2 text-center">{row.tl} / {row.psw}</td>
+                          <td className="px-4 py-2 text-center">
+                            <span
+                              className={cn(
+                                "inline-flex rounded px-2 py-0.5 text-[10px] font-semibold uppercase",
+                                row.status_validasi === "valid"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                                  : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                              )}
+                            >
+                              {row.status_validasi || "valid"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
 
             <Panel>
               <h2 className="font-semibold text-sm">Parameter Keterlambatan dan Pulang Sebelum Waktunya</h2>

@@ -157,7 +157,7 @@ class SystemTestFRNFRTest extends TestCase
      */
     public function test_fr18_fr19_fr20_pj_unit_read_only_dan_tolak_mutasi(): void
     {
-        $pj = $this->getAkun('5', 'pj_unit', '197505102000031001');
+        $pj = $this->getAkun('5', 'penanggung_jawab', '197505102000031001');
         Sanctum::actingAs($pj, ['*']);
 
         // Normal: Akses baca

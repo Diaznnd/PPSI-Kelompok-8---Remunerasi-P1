@@ -82,7 +82,7 @@ export default function ProfilUPTPage() {
       kepegawaian: "Kepegawaian",
       bendahara: "Bendahara",
       verifikator: "Verifikator",
-      pj_unit: "PJ Unit",
+      penanggung_jawab: "PJ Unit",
     }
     return labels[peran] || peran
   }

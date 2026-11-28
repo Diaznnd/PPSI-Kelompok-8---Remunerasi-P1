@@ -11,6 +11,7 @@ import {
   Workflow,
   Sparkles,
   ArrowRight,
+  Zap,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/context/AuthContext"
@@ -18,6 +19,26 @@ import { labelPeran, prefixPeran, type Peran } from "@/lib/peran"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+
+// Shortcut login untuk development (FTI & FT)
+const LOGIN_SHORTCUTS: Record<"fti" | "ft", { role: string; username: string; color: string }[]> = {
+  fti: [
+    { role: "Penanggung Jawab", username: "penanggungjawab1_teknologiinformasi", color: "bg-purple-500" },
+    { role: "Bendahara", username: "bendahara3_teknologiinformasi", color: "bg-blue-500" },
+    { role: "Kepegawaian", username: "kepegawaian5_teknologiinformasi", color: "bg-green-500" },
+    { role: "Verifikator", username: "verifikator1001_teknologiinformasi", color: "bg-orange-500" },
+    { role: "UPT Remunerasi", username: "uptremunerasi1002_teknologiinformasi", color: "bg-red-500" },
+    { role: "Pegawai", username: "pegawai45_teknologiinformasi", color: "bg-gray-500" },
+  ],
+  ft: [
+    { role: "Penanggung Jawab", username: "penanggungjawab51_teknik", color: "bg-purple-500" },
+    { role: "Bendahara", username: "bendahara53_teknik", color: "bg-blue-500" },
+    { role: "Kepegawaian", username: "kepegawaian55_teknik", color: "bg-green-500" },
+    { role: "Verifikator", username: "verifikator1001_teknologiinformasi", color: "bg-orange-500" },
+    { role: "UPT Remunerasi", username: "uptremunerasi1002_teknologiinformasi", color: "bg-red-500" },
+    { role: "Pegawai", username: "pegawai56_teknik", color: "bg-gray-500" },
+  ],
+}
 
 const FITUR = [
   {
@@ -52,12 +73,14 @@ export default function LoginPage() {
   const [lihat, setLihat] = useState(false)
   const [kirim, setKirim] = useState(false)
   const [peranTerpilih, setPeranTerpilih] = useState<Peran | null>(null)
+  const [shortcutUnit, setShortcutUnit] = useState<"fti" | "ft">("fti")
 
   // Redirect otomatis jika sudah memiliki sesi login aktif
   useEffect(() => {
     if (!loading && akun) {
       const from = (location.state as any)?.from?.pathname
-      const target = from || `${prefixPeran[akun.peran]}/dashboard`
+      const prefix = prefixPeran[akun.peran]
+      const target = from || (prefix ? `${prefix}/dashboard` : "/error-peran")
       navigate(target, { replace: true })
     }
   }, [akun, loading, navigate, location])
@@ -67,10 +90,11 @@ export default function LoginPage() {
     try {
       const userAkun = await login(u, p)
       const from = (location.state as any)?.from?.pathname
-      const target = from || `${prefixPeran[userAkun.peran]}/dashboard`
+      const prefix = prefixPeran[userAkun.peran]
+      const target = from || (prefix ? `${prefix}/dashboard` : "/error-peran")
 
       toast.success("Berhasil masuk!", {
-        description: `Selamat datang, ${userAkun.username} (${labelPeran[userAkun.peran]}). Mengarahkan ke dashboard...`,
+        description: `Selamat datang, ${userAkun.username} (${labelPeran[userAkun.peran] ?? userAkun.peran}). Mengarahkan ke dashboard...`,
       })
 
       navigate(target, { replace: true })
@@ -230,6 +254,58 @@ export default function LoginPage() {
           <p className="text-center text-xs text-muted-foreground">
             Lupa kata sandi atau akun belum aktif? <span className="font-semibold text-primary">Hubungi UPT Remunerasi.</span>
           </p>
+
+          {/* Development Shortcuts */}
+          {import.meta.env.DEV && (
+            <div className="mt-8 space-y-3 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-primary">
+                  <Zap className="size-4" />
+                  Quick Login (Development Only)
+                </div>
+                <div className="inline-flex rounded-md border bg-background p-0.5 text-[10px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setShortcutUnit("fti")}
+                    className={`rounded px-2 py-0.5 transition-colors ${shortcutUnit === "fti" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    FTI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShortcutUnit("ft")}
+                    className={`rounded px-2 py-0.5 transition-colors ${shortcutUnit === "ft" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    FT
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {LOGIN_SHORTCUTS[shortcutUnit].map((shortcut) => (
+                  <Button
+                    key={shortcut.username}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-auto flex-col items-start gap-0.5 py-2 text-left"
+                    onClick={() => handleLogin(shortcut.username, "password123")}
+                    disabled={kirim}
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-medium">
+                      <span className={`size-2 rounded-full ${shortcut.color}`} />
+                      {shortcut.role}
+                    </span>
+                    <span className="w-full truncate font-mono text-[10px] text-muted-foreground">
+                      {shortcut.username}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Password: <code className="rounded bg-muted px-1 py-0.5">password123</code>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

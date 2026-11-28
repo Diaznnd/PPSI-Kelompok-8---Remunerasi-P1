@@ -62,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/slip', [PegawaiSlipController::class, 'index']);
         Route::get('/slip/{id}', [PegawaiSlipController::class, 'show']);
         Route::get('/slip/{id}/pdf', [PegawaiSlipController::class, 'downloadPdf']);
+        Route::get('/slip/{id}/absensi-pdf', [PegawaiSlipController::class, 'downloadAbsensiPdf']);
 
         // Pengaduan & Layanan
         Route::get('/pengaduan', [PegawaiPengaduanController::class, 'index']);
@@ -125,7 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================
     // ROLE PENANGGUNG JAWAB REMUNERASI UNIT (L7-L11: FR-18, FR-19, FR-20 - HANYA BACA)
     // ========================================================
-    Route::prefix('pj-unit')->middleware('peran:pj_unit')->group(function () {
+    Route::prefix('pj-unit')->middleware('peran:penanggung_jawab')->group(function () {
         Route::get('/dashboard', [PjUnitController::class, 'dashboard']);
         Route::get('/pegawai', [PjUnitController::class, 'pegawai']);               // L7 (FR-20)
         Route::get('/status', [PjUnitController::class, 'statusPengajuan']);        // L8 (FR-18)

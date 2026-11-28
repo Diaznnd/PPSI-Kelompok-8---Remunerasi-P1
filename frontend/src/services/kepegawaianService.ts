@@ -41,6 +41,7 @@ export interface UsulanJabatanPayload {
   jabatan_id?: number
   jabatan_baru?: string
   grade_baru?: number | string
+  unit_baru_id?: number | string
   jenis_perubahan: string
   tanggal_berlaku: string
   alasan?: string
@@ -250,6 +251,9 @@ export const kepegawaianService = {
     }
     if (payload.grade_baru !== undefined) {
       formData.append("grade_baru", String(payload.grade_baru))
+    }
+    if (payload.unit_baru_id) {
+      formData.append("unit_baru_id", String(payload.unit_baru_id))
     }
     formData.append("jenis_perubahan", payload.jenis_perubahan)
     formData.append("tanggal_berlaku", payload.tanggal_berlaku)

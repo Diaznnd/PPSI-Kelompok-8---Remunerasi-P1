@@ -1,11 +1,7 @@
-import { useState } from "react"
 import { FileCheck2, FileText, Gauge, GitCompareArrows, History, LayoutGrid, ListChecks, MessageSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-const PERIODE_LIST = ["Oktober 2026", "September 2026", "Agustus 2026", "Juli 2026"]
-const PERIODE_DEFAULT = "Oktober 2026"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 
 const NAV = [
   { to: "/verifikator/dashboard", label: "Beranda", icon: Gauge },
@@ -23,7 +19,6 @@ const NAV_PORTAL_PEGAWAI = [
 
 export default function VerifikatorShell() {
   const { akun } = useAuth()
-  const [periode, setPeriode] = useState(PERIODE_DEFAULT)
 
   const nama = akun?.nama || akun?.username || "Tim Verifikator"
   const inisial =
@@ -51,23 +46,7 @@ export default function VerifikatorShell() {
         peran: "Verifikator",
         unit: unitNama,
       }}
-      headerLeft={
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground hidden sm:inline">Periode:</span>
-          <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="h-8 w-40 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PERIODE_LIST.map((p) => (
-                <SelectItem key={p} value={p} className="text-xs">
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      }
+      headerLeft={<NavbarTimePhaseIndicator />}
     />
   )
 }

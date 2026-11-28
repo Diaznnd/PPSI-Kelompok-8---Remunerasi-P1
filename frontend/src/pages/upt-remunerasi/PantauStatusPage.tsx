@@ -39,7 +39,7 @@ function getStepIndex(status: UPTPengajuan["status"]): number {
 export default function PantauStatusUPTPage() {
   const { periode: activePeriode } = usePeriode()
   const [activeTab, setActiveTab] = useState<"pengajuan" | "jabatan">("pengajuan")
-  const [periodeFilter, setPeriodeFilter] = useState(activePeriode || "Oktober 2026")
+  const [periodeFilter, setPeriodeFilter] = useState("semua")
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
   
@@ -59,7 +59,7 @@ export default function PantauStatusUPTPage() {
     const fetchData = async () => {
       try {
         const [monitoringRes, usulanRes] = await Promise.all([
-          uptRemunerasiService.getMonitoringStatus(periodeFilter !== "semua" ? periodeFilter : "2026-10"),
+          uptRemunerasiService.getMonitoringStatus(periodeFilter),
           uptRemunerasiService.getPenetapanJabatanList(),
         ])
         if (monitoringRes?.data && Array.isArray(monitoringRes.data)) {
