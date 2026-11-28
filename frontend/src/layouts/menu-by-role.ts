@@ -25,7 +25,7 @@ export const menuByRole: Record<Peran, { label: string; to: string }[]> = {
     { label: "Pantau Status", to: "/verifikator/status" },
     { label: "Jejak Audit", to: "/verifikator/audit" },
   ],
-  pj_unit: [
+  penanggung_jawab: [
     { label: "Dashboard", to: "/pj-unit/dashboard" },
     { label: "Pengajuan Unit", to: "/pj-unit/pengajuan" },
   ],

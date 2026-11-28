@@ -35,7 +35,7 @@ function PratinjauDokumen({ dok, nama, onClose }: { dok: Dok; nama: string; onCl
             <p className="mt-3 text-right font-bold">Rektor Universitas Andalas</p>
           </div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button><Button onClick={() => { if (dok.url) window.open(dok.url, "_blank"); else toast.info("Unduh belum tersambung ke backend (dummy).") }}><Download /> Unduh PDF</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>Tutup</Button><Button onClick={() => { if (dok.url) window.open(dok.url, "_blank"); else toast.info("Berkas PDF tidak ditemukan.") }}><Download /> Unduh PDF</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )

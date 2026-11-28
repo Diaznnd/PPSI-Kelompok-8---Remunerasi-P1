@@ -247,8 +247,8 @@
             <td class="kop-text">
                 <div class="kop-line-1">KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI</div>
                 <div class="kop-line-2">UNIVERSITAS ANDALAS</div>
-                <div class="kop-line-3">SISTEM INFORMASI REMUNERASI KINERJA (SIREMUN-P1)</div>
-                <div class="kop-line-4">Alamat: Kampus Limau Manis, Padang, Sumatera Barat 25163 | Laman: unand.ac.id</div>
+                <div class="kop-line-3">{{ strtoupper($unitKerja ?: 'FAKULTAS TEKNOLOGI INFORMASI') }}</div>
+                <div class="kop-line-4">Kampus Limau Manis, Padang, Sumatera Barat 25163 | Laman: unand.ac.id</div>
             </td>
         </tr>
     </table>
@@ -367,41 +367,48 @@
     <table class="bordered-table">
         <thead>
             <tr>
-                <th style="width: 30%;">Parameter Rekapitulasi</th>
-                <th style="width: 20%; text-align: center;">Keterangan / Nilai</th>
-                <th style="width: 25%; text-align: center;">Persentase (%)</th>
-                <th style="width: 25%; text-align: right;">Nominal Pengurangan</th>
+                <th style="width: 40%;">Komponen Kehadiran</th>
+                <th style="width: 18%; text-align: center;">Jumlah Hari</th>
+                <th style="width: 18%; text-align: center;">Tarif per Hari</th>
+                <th style="width: 24%; text-align: center;">Pengurangan (%)</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Hari Kerja Efektif</td>
+                <td><strong>Hari Kerja Efektif</strong></td>
                 <td class="text-center">{{ $hariKerja }} Hari</td>
                 <td class="text-center">-</td>
-                <td class="text-right">-</td>
+                <td class="text-center">-</td>
             </tr>
             <tr>
-                <td>Kehadiran Tercatat</td>
+                <td><strong>Kehadiran Tercatat</strong></td>
                 <td class="text-center">{{ $hadir }} Hari</td>
                 <td class="text-center">-</td>
-                <td class="text-right">-</td>
+                <td class="text-center">-</td>
             </tr>
+            @foreach($komponen ?? [] as $k)
+            @php
+                $hari = $k['JumlahHari'] ?? $k['hari'] ?? 0;
+                $persen = $k['PersenPengurangan'] ?? 0;
+            @endphp
+            @if($hari > 0 || $persen > 0)
             <tr>
-                <td>Ketidakhadiran / Cuti / Izin</td>
-                <td class="text-center">{{ $tidakHadir }} Hari</td>
-                <td class="text-center">{{ $totalPersenPotongan }}%</td>
-                <td class="text-right">Rp {{ $penguranganKehadiran }}</td>
+                <td>{{ $k['Nama'] ?? $k['nama'] ?? '-' }}</td>
+                <td class="text-center">{{ $hari }} hari</td>
+                <td class="text-center">{{ $k['TarifPerHari'] ?? $k['tarif'] ?? '-' }}</td>
+                <td class="text-center">{{ $persen }}%</td>
             </tr>
+            @endif
+            @endforeach
             <tr>
                 <td>Hukuman Disiplin Pegawai</td>
                 <td class="text-center">{{ $statusHukdis }}</td>
+                <td class="text-center">-</td>
                 <td class="text-center">0%</td>
-                <td class="text-right">Rp 0</td>
             </tr>
             <tr style="background-color: #f8fafc; font-weight: bold;">
-                <td colspan="2">Total Pengurangan Kehadiran</td>
-                <td class="text-center">{{ $totalPersenPotongan }}%</td>
-                <td class="text-right" style="color: #b91c1c;">(Rp {{ $penguranganKehadiran }})</td>
+                <td colspan="3">Total Pengurangan Kehadiran</td>
+                <td class="text-center" style="color: #b91c1c;">{{ $totalPersenPotongan }}%  (Rp {{ $penguranganKehadiran }})</td>
             </tr>
         </tbody>
     </table>
@@ -449,24 +456,28 @@
         </table>
     </div>
 
-    <!-- FOOTER / PENGESAHAN ELEKTRONIK -->
-    <div class="footer-box">
-        <table class="footer-table">
-            <tr>
-                <td style="width: 65%; vertical-align: top;">
-                    <div class="footer-note">
-                        <strong>Catatan Resmi:</strong><br>
-                        1. Dokumen ini dicetak secara elektronik melalui sistem <strong>SIREMUN-P1 Universitas Andalas</strong> dan sah tanpa tanda tangan basah berdasarkan UU RI No. 11 Tahun 2008 tentang ITE.<br>
-                        2. Apabila terdapat ketidaksesuaian perhitungan pada slip ini, pegawai berhak mengajukan pengaduan resmi melalui Portal Pegawai SIREMUN-P1 dalam jangka waktu yang telah ditetapkan.
-                    </div>
-                </td>
-                <td style="width: 35%; vertical-align: top;" class="footer-meta">
-                    Dicetak pada: {{ $waktuCetak }} WIB<br>
-                    Kode Keaslian: <strong>{{ $kodeVerifikasi }}</strong>
-                </td>
-            </tr>
-        </table>
-    </div>
+    <!-- PENGESAHAN RESMI & FOOTER -->
+    <table style="width: 100%; border-collapse: collapse; margin-top: 14px;">
+        <tr>
+            <td style="width: 55%; vertical-align: top;">
+                <div class="footer-note">
+                    <strong>Catatan Resmi:</strong><br>
+                    1. Dokumen ini diterbitkan resmi melalui sistem <strong>SIREMUN-P1 {{ $unitKerja }}</strong>.<br>
+                    2. Apabila terdapat ketidaksesuaian perhitungan, pegawai berhak mengajukan pengaduan resmi melalui Portal Pegawai SIREMUN-P1.
+                </div>
+                <div style="margin-top: 8px; font-size: 7pt; color: #475569; font-family: monospace;">
+                    Dicetak: {{ $waktuCetak }} WIB &bull; Kode: <strong>{{ $kodeVerifikasi }}</strong>
+                </div>
+            </td>
+            <td style="width: 45%; vertical-align: top; text-align: center; font-size: 8pt;">
+                <div>Padang, {{ $tanggalSurat ?? date('d F Y') }}</div>
+                <div style="font-weight: bold; margin-top: 2px;">Penanggung Jawab Remunerasi {{ $unitKerja }}</div>
+                <div style="height: 36px;"></div>
+                <div style="font-weight: bold; text-decoration: underline;">Dekan / Pimpinan Unit</div>
+                <div style="font-size: 7pt; color: #64748b;">Disahkan secara elektronik (SIREMUN-P1)</div>
+            </td>
+        </tr>
+    </table>
 
 </body>
 </html>

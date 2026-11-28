@@ -144,7 +144,7 @@ class AuthController extends Controller
                 'dokumen:read-all',
                 'dokumen:verify',
             ],
-            'pj_unit' => [
+            'penanggung_jawab' => [
                 'pengajuan:read-unit',
                 'pengajuan:approve-unit',
                 'pengajuan:reject-unit',

@@ -9,8 +9,7 @@ import { Avatar, TabBar } from "@/components/kepegawaian/ui"
 import { Stepper } from "@/components/bendahara/Stepper"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { warnaUsulan } from "@/components/kepegawaian/warna"
-import type { StatusUsulan } from "@/data/dummy-kepegawaian"
-import { useKepeg } from "@/data/store-kepegawaian"
+import type { StatusUsulan } from "@/types/kepegawaian"
 import { cn } from "@/lib/utils"
 import { kepegawaianService } from "@/services/kepegawaianService"
 
@@ -25,7 +24,6 @@ const statusMap: Record<string, StatusUsulan> = {
 }
 
 export default function UsulanJabatanListPage() {
-  const { usulan: usulanDummy } = useKepeg()
   const [loading, setLoading] = useState(true)
   const [usulan, setUsulan] = useState<any[]>([])
   const [tab, setTab] = useState<"semua" | StatusUsulan>("semua")
@@ -62,16 +60,15 @@ export default function UsulanJabatanListPage() {
         setUsulan(mappedData)
       } catch (error) {
         console.error("Error fetching usulan:", error)
-        toast.error("Gagal memuat usulan. Menggunakan data dummy.")
-        // Fallback to dummy data
-        setUsulan(usulanDummy)
+        toast.error("Gagal memuat usulan dari database.")
+        setUsulan([])
       } finally {
         setLoading(false)
       }
     }
 
     fetchUsulan()
-  }, [usulanDummy])
+  }, [])
 
   const hitung = (s: StatusUsulan) => usulan.filter((u) => u.status === s).length
   const kembali = usulan.filter((u) => u.status === "Dikembalikan")
@@ -89,7 +86,7 @@ export default function UsulanJabatanListPage() {
     <>
       <PageHeading
         title="Usulan Jabatan/Grade"
-        desc="Ajukan perubahan jabatan dan grade berdasarkan master data UPT Remunerasi dan pantau statusnya hingga ditetapkan."
+        desc="Ajukan perubahan jabatan dan grade untuk periode penetapan mendatang. Usulan ditetapkan akan dipakai untuk perhitungan P1 bulan yang sesuai."
         action={<Button asChild><Link to="/kepegawaian/usulan/baru"><Plus /> Buat Usulan</Link></Button>}
       />
       <div className="space-y-5">

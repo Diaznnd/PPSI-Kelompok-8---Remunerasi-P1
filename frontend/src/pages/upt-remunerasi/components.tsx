@@ -27,7 +27,7 @@ export { Card, CardContent }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
-import { rupiah } from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
 
 const legacyStatusClass: Record<string, string> = {
   Menunggu: "border-amber-200 bg-amber-100 text-amber-800",
@@ -155,10 +155,13 @@ export function StatCard({
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  belum_mengajukan: { label: "Belum Mengajukan", className: "border-slate-200 bg-slate-100 text-slate-600" },
   draft: { label: "Draft", className: "border-slate-200 bg-slate-100 text-slate-700" },
   diajukan: { label: "Menunggu Verifikasi", className: "border-amber-200 bg-amber-100 text-amber-800" },
   dikembalikan: { label: "Dikembalikan", className: "border-rose-200 bg-rose-100 text-rose-800" },
+  diverifikasi: { label: "Diverifikasi", className: "border-sky-200 bg-sky-100 text-sky-800" },
   terverifikasi: { label: "Terverifikasi", className: "border-sky-200 bg-sky-100 text-sky-800" },
+  disahkan: { label: "Disahkan UPT", className: "border-emerald-200 bg-emerald-100 text-emerald-800" },
   netto_ditetapkan: { label: "Netto Ditetapkan", className: "border-emerald-200 bg-emerald-100 text-emerald-800" },
   amprah_tersedia: { label: "Amprah Tersedia", className: "border-emerald-200 bg-emerald-100 text-emerald-800" },
 
@@ -184,9 +187,10 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   nonaktif: { label: "Nonaktif", className: "border-rose-200 bg-rose-100 text-rose-800" },
 }
 
-export function StatusBadge({ status, className = "" }: { status: string; className?: string }) {
-  const normKey = status.toLowerCase().replace(/\s+/g, "_")
-  const conf = STATUS_CONFIG[normKey] || STATUS_CONFIG[status]
+export function StatusBadge({ status, className = "" }: { status?: string | null; className?: string }) {
+  const safeStatus = status || "belum_mengajukan"
+  const normKey = safeStatus.toLowerCase().replace(/\s+/g, "_")
+  const conf = STATUS_CONFIG[normKey] || STATUS_CONFIG[safeStatus]
 
   if (conf) {
     return (
@@ -327,6 +331,7 @@ export function ConfirmDialog({
   cancelText = "Batal",
   danger = false,
   loading = false,
+  disabled = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -339,6 +344,7 @@ export function ConfirmDialog({
   cancelText?: string
   danger?: boolean
   loading?: boolean
+  disabled?: boolean
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -351,7 +357,7 @@ export function ConfirmDialog({
         <DialogFooter className="mt-4 gap-2 sm:gap-0">
           <Button
             variant="outline"
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => {
               onCancel?.()
               onOpenChange(false)
@@ -361,7 +367,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={danger ? "destructive" : "default"}
-            disabled={loading}
+            disabled={loading || disabled}
             onClick={() => {
               onConfirm()
             }}

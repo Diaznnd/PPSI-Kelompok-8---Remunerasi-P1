@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Field, PageHeading, Panel } from "@/components/pegawai/shared"
 import { BilahAksi, StatusVerifBadge, Tag, TextArea } from "@/components/verifikator/shared"
 import { KembalikanDialog, SetujuiDialog } from "@/components/verifikator/KeputusanDialog"
-import { DAFTAR_PERIKSA, PEGAWAI_FTI, RINGKASAN_VALIDASI, type KategoriValidasi, type PegawaiPengajuan } from "@/data/dummy-verifikator"
+import { DAFTAR_PERIKSA, RINGKASAN_VALIDASI, type KategoriValidasi, type PegawaiPengajuan } from "@/types/verifikator"
 import { putuskan, usePengajuan } from "@/data/store-verifikator"
 import { rupiah } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -29,7 +29,8 @@ export default function PemeriksaanPengajuanPage() {
   const [dlgSetuju, setDlgSetuju] = useState(false)
   const [dlgKembali, setDlgKembali] = useState(false)
 
-  const rows = useMemo(() => (filter ? PEGAWAI_FTI.filter((x) => x.kategori.includes(filter)) : PEGAWAI_FTI), [filter])
+  const pegawaiList: PegawaiPengajuan[] = p?.pegawai ?? []
+  const rows = useMemo(() => (filter ? pegawaiList.filter((x) => x.kategori.includes(filter)) : pegawaiList), [filter, pegawaiList])
 
   if (!p) return <Panel>Pengajuan tidak ditemukan. <Link to="/verifikator/pengajuan" className="text-primary hover:underline">Kembali ke daftar</Link></Panel>
 

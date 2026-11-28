@@ -1,23 +1,41 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Panel } from "@/components/pegawai/shared"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeader, StatusBadge, RupiahText } from "../components"
-import { daftarSlipSaya } from "@/data/dummy-upt-saya"
+import { pegawaiService } from "@/services/pegawaiService"
 import { SayaChip } from "./SayaChip"
 
 export default function SlipSayaPage() {
   const [tahunFilter, setTahunFilter] = useState("semua")
+  const [slips, setSlips] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const tahunOptions = useMemo(() => {
-    const set = new Set(daftarSlipSaya.map((s) => s.tahun))
-    return Array.from(set).sort((a, b) => Number(b) - Number(a))
+  useEffect(() => {
+    const fetchSlips = async () => {
+      try {
+        setLoading(true)
+        const data = await pegawaiService.getSlips()
+        if (Array.isArray(data)) setSlips(data)
+      } catch (err) {
+        console.error("Gagal memuat slip:", err)
+        setSlips([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchSlips()
   }, [])
 
+  const tahunOptions = useMemo(() => {
+    const set = new Set(slips.map((s) => s.tahun || s.periode?.split(" ")[1]))
+    return Array.from(set).filter(Boolean).sort((a, b) => Number(b) - Number(a))
+  }, [slips])
+
   const filtered = useMemo(() => {
-    return daftarSlipSaya.filter((s) => tahunFilter === "semua" || s.tahun === tahunFilter)
-  }, [tahunFilter])
+    return slips.filter((s) => tahunFilter === "semua" || s.tahun === tahunFilter || s.periode?.includes(tahunFilter))
+  }, [slips, tahunFilter])
 
   return (
     <div className="space-y-6">
@@ -74,14 +92,14 @@ export default function SlipSayaPage() {
                   return (
                     <TableRow key={s.id} className={isBelum ? "bg-muted/40 text-muted-foreground" : undefined}>
                       <TableCell className="pl-6 font-medium">{s.periode}</TableCell>
-                      <TableCell className="font-mono text-xs">{s.nomorSlip}</TableCell>
+                      <TableCell className="font-mono text-xs">{s.nomorSlip || s.nomor || s.id}</TableCell>
                       <TableCell>
                         {isBelum ? (
                           <span className="text-xs italic">
                             Slip periode ini belum terbit. Slip terbit setelah proses verifikasi dan penetapan selesai.
                           </span>
                         ) : (
-                          <RupiahText value={s.jumlahNetto} className="font-semibold text-emerald-700" />
+                          <RupiahText value={s.jumlahNetto || s.netto || 0} className="font-semibold text-emerald-700" />
                         )}
                       </TableCell>
                       <TableCell>

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { ChevronRight, GitCompareArrows, ShieldCheck, Users, Wallet, CalendarDays, type LucideIcon } from "lucide-react"
+import { CheckCircle2, ChevronRight, Clock, GitCompareArrows, Users, Wallet, CalendarDays, type LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { PageHeading, Panel, PanelTitle } from "@/components/pegawai/shared"
 import { Stepper } from "@/components/bendahara/Stepper"
-import { pjUnit } from "@/data/dummy-pjunit"
+import { useAuth } from "@/context/AuthContext"
 import { rupiah } from "@/lib/format"
 import { pjUnitService } from "@/services/pjUnitService"
 import { cn } from "@/lib/utils"
@@ -17,22 +17,24 @@ const Tahap = ({ desk, status, warna }: { desk: string; status: string; warna: s
 )
 
 export default function BerandaPjUnitPage() {
+  const { akun } = useAuth()
   const [dash, setDash] = useState<any | null>(null)
 
   useEffect(() => {
     pjUnitService.getDashboard().then((res) => setDash(res)).catch(() => {})
   }, [])
 
-  const unitNama = dash?.unit || pjUnit.unit
+  const unitNama = dash?.unit || akun?.unit_nama || "Unit Kerja"
   const periodeTerkini = dash?.pengajuan_terkini?.periode || "Oktober 2026"
   const statusTerkini = dash?.pengajuan_terkini?.status || "Diverifikasi"
   const waktuTerkini = dash?.pengajuan_terkini?.diajukan_at || "8 Oktober 2026, 14.20 WIB"
+  const menungguCount = Number(dash?.approval_presensi?.menunggu_count ?? dash?.statistik?.presensi_menunggu_approval ?? 0)
 
   const KARTU: [string, string, string, LucideIcon][] = [
-    ["Jumlah Pegawai Aktif", String(dash?.statistik?.pegawai_aktif ?? 245), `Periode ${periodeTerkini}`, Users],
-    ["Dalam Proses Perubahan Jabatan", String(dash?.statistik?.usulan_proses ?? 7), `Periode ${periodeTerkini}`, GitCompareArrows],
-    ["Berstatus Hukuman Disiplin", String(dash?.statistik?.hukuman_aktif ?? 2), `Periode ${periodeTerkini}`, ShieldCheck],
-    ["Total P1 Setelah Potongan", dash?.statistik?.total_bruto ? rupiah(dash.statistik.total_bruto) : "Rp 1.128.450.000", `Periode ${periodeTerkini}`, Wallet],
+    ["Jumlah Pegawai Aktif", String(dash?.statistik?.pegawai_aktif ?? 0), `Unit ${unitNama}`, Users],
+    ["Menunggu Approval Presensi", String(menungguCount), menungguCount > 0 ? "Perlu persetujuan pimpinan" : "Semua presensi disetujui", CheckCircle2],
+    ["Proses Perubahan Jabatan", String(dash?.statistik?.usulan_proses ?? 0), "Usulan dalam proses", GitCompareArrows],
+    ["Total P1 Setelah Potongan", dash?.statistik?.total_bruto ? rupiah(dash.statistik.total_bruto) : "Rp 0", `Estimasi ${periodeTerkini}`, Wallet],
   ]
 
   return (
@@ -40,6 +42,33 @@ export default function BerandaPjUnitPage() {
       <PageHeading title="Beranda" desc={`Pemantauan remunerasi ${unitNama} periode ${periodeTerkini}.`} />
 
       <div className="space-y-6">
+        {/* Banner Alert jika ada presensi menunggu approval */}
+        {menungguCount > 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs dark:border-amber-900/60 dark:bg-amber-950/30">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-200/80 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
+                  <Clock className="size-5" />
+                </span>
+                <div>
+                  <p className="font-semibold text-sm text-amber-950 dark:text-amber-100">
+                    {menungguCount} Berkas Rekap Absensi Menunggu Persetujuan Anda
+                  </p>
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    Kepegawaian telah mengunggah rekap presensi unit. Persetujuan Anda diperlukan agar Bendahara dapat menjalankan perhitungan P1.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/pj-unit/approval-presensi"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-amber-700 transition"
+              >
+                Tinjau & Setujui Sekarang <ChevronRight className="size-4" />
+              </Link>
+            </div>
+          </div>
+        )}
+
         <Panel className="border-primary/60 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

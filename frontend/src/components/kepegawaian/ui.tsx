@@ -2,7 +2,7 @@ import { useRef, useState, type ComponentProps, type DragEvent, type ReactNode }
 import { UploadCloud, X } from "lucide-react"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
-import { inisial } from "@/data/dummy-kepegawaian"
+import { inisial } from "@/types/kepegawaian"
 import { cn } from "@/lib/utils"
 
 export const Avatar = ({ nama }: { nama: string }) => (

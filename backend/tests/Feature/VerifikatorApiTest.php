@@ -70,7 +70,6 @@ class VerifikatorApiTest extends TestCase
         return UsulanJabatan::create([
             'NIP' => $pegawai->NIP,
             'unit_id' => $fti->id,
-            'jabatan_lama_id' => $jabatanLama->id,
             'jabatan_id' => $jabatanBaru->id,
             'jenis_perubahan' => 'Promosi jabatan fungsional',
             'status' => 'diajukan',

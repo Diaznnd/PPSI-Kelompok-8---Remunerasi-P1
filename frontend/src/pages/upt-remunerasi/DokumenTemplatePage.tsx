@@ -22,7 +22,7 @@ import {
   dokumenConfigInitial,
   dokumenTemplate,
   type PenandatanganConfig,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Label } from "@/components/ui/label"
 
 export default function DokumenTemplatePage() {

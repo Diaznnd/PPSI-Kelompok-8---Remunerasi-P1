@@ -18,6 +18,8 @@ class UsulanJabatan extends Model
         'akun_id',
         'NIP',
         'unit_id',
+        'unit_baru_id',
+        'effective_unit_id',
         'jabatan_lama_id',
         'jabatan_id',
         'nomor_urutan',
@@ -68,6 +70,16 @@ class UsulanJabatan extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class, 'unit_id');
+    }
+
+    public function unitBaru(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class, 'unit_baru_id');
+    }
+
+    public function effectiveUnit(): BelongsTo
+    {
+        return $this->belongsTo(UnitKerja::class, 'effective_unit_id');
     }
 
     public function jabatan(): BelongsTo

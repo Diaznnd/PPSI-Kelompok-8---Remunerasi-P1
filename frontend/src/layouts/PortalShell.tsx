@@ -18,6 +18,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string; group?: string }
+export type NavItem = { to: string; label: string; icon: LucideIcon; grup?: string; group?: string }
 
 type Props = {
   home: string
@@ -50,6 +51,7 @@ export default function PortalShell({
   // kelompokkan menu berurutan berdasarkan `grup` / `group`
   const kelompok = nav.reduce<{ judul: string; item: NavItem[] }[]>((acc, n) => {
     const judul = n.grup ?? n.group ?? "MENU UTAMA"
+    const judul = n.grup ?? n.group ?? "MENU UTAMA"
     const akhir = acc[acc.length - 1]
     if (akhir && akhir.judul === judul) akhir.item.push(n)
     else acc.push({ judul, item: [n] })
@@ -63,10 +65,10 @@ export default function PortalShell({
         {kelompok.map((g, i) => (
           <div key={g.judul}>
             {/* Separator antar section (kecuali pertama) */}
-            {i > 0 && <div className="my-3 border-t border-border/60" />}
+            {i > 0 && <div className="my-2 border-t border-border/50" />}
             <div className="space-y-0.5">
               {!collapsed && (
-                <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-muted-foreground/70 uppercase">
+                <p className="mb-1 px-3 pt-1 text-[10px] font-semibold tracking-widest text-muted-foreground/60 uppercase select-none">
                   {g.judul}
                 </p>
               )}
@@ -97,10 +99,10 @@ export default function PortalShell({
         {/* Seksi tambahan: Portal Mandiri Pegawai (untuk akun multi-role) */}
         {secondaryNav && secondaryNav.items.length > 0 && (
           <div>
-            <div className="my-3 border-t border-border/60" />
+            <div className="my-2 border-t border-border/50" />
             <div className="space-y-0.5">
               {!collapsed && (
-                <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-muted-foreground/70 uppercase">
+                <p className="mb-1 px-3 pt-1 text-[10px] font-semibold tracking-widest text-muted-foreground/60 uppercase select-none">
                   {secondaryNav.title}
                 </p>
               )}
@@ -170,10 +172,10 @@ export default function PortalShell({
 
           {/* Akun / Keluar */}
           <div>
-            <div className="my-3 border-t border-border/60" />
+            <div className="my-2 border-t border-border/50" />
             <div className="space-y-0.5">
               {!collapsed && (
-                <p className="mb-1 px-3 text-[10px] font-semibold tracking-widest text-muted-foreground/70 uppercase">AKUN</p>
+                <p className="mb-1 px-3 pt-1 text-[10px] font-semibold tracking-widest text-muted-foreground/60 uppercase select-none">AKUN</p>
               )}
               <button
                 onClick={() => setKonfirmasi(true)}

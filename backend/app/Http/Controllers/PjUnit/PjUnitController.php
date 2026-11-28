@@ -33,7 +33,7 @@ class PjUnitController extends Controller
         }
 
         $roleUnit = RoleUnit::where('role_id', $user->id)
-            ->where('peran', 'pj_unit')
+            ->where('peran', 'penanggung_jawab')
             ->where('aktif', true)
             ->first();
 
@@ -98,6 +98,15 @@ class PjUnitController extends Controller
             ->whereIn('status', ['diajukan', 'dikembalikan', 'disetujui_verifikator', 'diverifikasi'])
             ->count();
 
+        // Rekap presensi yang menunggu approval PJ Unit
+        $presensiMenungguApproval = \App\Models\PresensiReport::where('unit_id', $unit->id)
+            ->where('status_approval', 'menunggu_approval')
+            ->count();
+
+        $presensiTerakhir = \App\Models\PresensiReport::where('unit_id', $unit->id)
+            ->latest('id')
+            ->first();
+
         $hariIni = now()->format('Y-m-d');
         $hukdisAktif = HukumanDisiplin::whereHas('pegawai', fn ($q) => $q->where('unit_id', $unit->id))
             ->where(function ($q) use ($hariIni) {
@@ -137,6 +146,17 @@ class PjUnitController extends Controller
                 'usulan_proses' => $usulanProses,
                 'hukuman_aktif' => $hukdisAktif,
                 'total_bruto' => $totalBruto,
+                'presensi_menunggu_approval' => $presensiMenungguApproval,
+            ],
+            'approval_presensi' => [
+                'menunggu_count' => $presensiMenungguApproval,
+                'laporan_terkini' => $presensiTerakhir ? [
+                    'id' => $presensiTerakhir->id,
+                    'periode' => $presensiTerakhir->masa_file ?? $presensiTerakhir->periode,
+                    'status_approval' => $presensiTerakhir->status_approval,
+                    'jumlah_valid' => (int) $presensiTerakhir->jumlah_valid,
+                    'dimpor_at' => $presensiTerakhir->dimpor_at?->translatedFormat('j F Y, H:i') . ' WIB',
+                ] : null,
             ],
             'pengajuan_terkini' => [
                 'id' => $pengajuanTerakhir?->id,

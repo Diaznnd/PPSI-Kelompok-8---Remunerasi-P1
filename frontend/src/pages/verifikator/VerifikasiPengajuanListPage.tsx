@@ -9,7 +9,7 @@ const unik = (a: string[]) => [...new Set(a)]
 
 export default function VerifikasiPengajuanListPage() {
   const pengajuan = usePengajuan()
-  const [periode, setPeriode] = useState("September 2026")
+  const [periode, setPeriode] = useState("semua")
   const [unit, setUnit] = useState("semua")
   const [status, setStatus] = useState("semua")
 

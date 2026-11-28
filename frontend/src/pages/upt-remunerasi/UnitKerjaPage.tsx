@@ -10,14 +10,12 @@ import {
   FormDialog,
   ConfirmDialog,
   WarningBanner,
-  Toast,
   type ColumnDef,
 } from "./components"
 import {
   type UnitKerjaItem,
   type TipeUnit,
-  type StatusEntitas,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
@@ -230,7 +228,7 @@ export default function UnitKerjaPage() {
       header: "Pegawai Aktif",
       cell: (item) => (
         <span className="font-medium text-xs">
-          {item.aktif > 0 ? `${item.aktif} pegawai` : "0 pegawai"}
+          {Number(item.aktif) > 0 ? `${item.aktif} pegawai` : "0 pegawai"}
         </span>
       ),
       className: "w-32",
@@ -572,7 +570,7 @@ export default function UnitKerjaPage() {
               <p className="text-xs text-muted-foreground">
                 Kode Unit: <span className="font-mono font-bold text-foreground">{deactivateItem.kode}</span>
               </p>
-              {deactivateItem.aktif > 0 && (
+              {Number(deactivateItem.aktif) > 0 && (
                 <WarningBanner variant="warning" title="Peringatan Pegawai Aktif">
                   Masih terdapat <strong>{deactivateItem.aktif} pegawai aktif</strong> yang terdaftar pada unit ini.
                   Pastikan mutasi atau penyesuaian unit kerja pegawai telah diatur di Kepegawaian.

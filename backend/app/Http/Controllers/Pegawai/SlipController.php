@@ -34,22 +34,80 @@ class SlipController extends Controller
         $netto = (float) ($item->p1_netto ?: max(0, $bruto - $pph21));
         $totalPersen = (float) ($item->total_persen_potongan ?: 0);
 
-        $rawKomponen = is_array($item->rincian_potongan) && count($item->rincian_potongan) > 0
+        $rawRincian = is_array($item->rincian_potongan) && count($item->rincian_potongan) > 0
             ? $item->rincian_potongan
-            : $this->defaultKomponen();
+            : null;
 
-        $komponen = array_map(function ($k) {
-            return [
-                'nama' => $k['nama'] ?? $k['Nama'] ?? '-',
-                'hari' => $k['hari'] ?? $k['JumlahHari'] ?? 0,
-                'tarif' => $k['tarif'] ?? $k['TarifPerHari'] ?? '0%',
-                'persen' => $k['persen'] ?? $k['PersenPengurangan'] ?? 0,
-                'Nama' => $k['Nama'] ?? $k['nama'] ?? '-',
-                'JumlahHari' => $k['JumlahHari'] ?? $k['hari'] ?? 0,
-                'TarifPerHari' => $k['TarifPerHari'] ?? $k['tarif'] ?? '0%',
-                'PersenPengurangan' => (float) str_replace(['%', ','], ['', '.'], (string) ($k['PersenPengurangan'] ?? $k['persen'] ?? 0)),
-            ];
-        }, $rawKomponen);
+        $presensi = $item->presensiBulanan;
+        $hariKerja = (int) ($presensi?->hari_kerja ?: 22);
+        $alfaVal = (float) ($presensi?->alfa > 0 ? $presensi->alfa : ($presensi?->tidak_hadir ?? 0));
+        $cutiVal = (float) ($presensi?->cuti_izin ?? (
+            ($presensi?->cuti_sakit ?? 0) +
+            ($presensi?->cuti_bersalin_1_2 ?? 0) +
+            ($presensi?->cuti_bersalin_3 ?? 0) +
+            ($presensi?->cuti_bersalin_4_plus ?? 0) +
+            ($presensi?->cuti_alasan_penting ?? 0) +
+            ($presensi?->cuti_besar ?? 0) +
+            ($presensi?->cuti_tahunan ?? 0)
+        ));
+        $hadirVal = (float) ($presensi?->hadir ?? max(0, $hariKerja - $alfaVal - $cutiVal));
+        $tlTotal = (int) (($presensi?->s1 ?? 0) + ($presensi?->s2 ?? 0) + ($presensi?->s3 ?? 0) + ($presensi?->s4 ?? 0) + ($presensi?->s5 ?? 0) + ($presensi?->s6 ?? 0));
+        $pswTotal = (int) (($presensi?->pw1 ?? 0) + ($presensi?->pw2 ?? 0) + ($presensi?->pw3 ?? 0) + ($presensi?->pw4 ?? 0) + ($presensi?->pw5 ?? 0) + ($presensi?->pw6 ?? 0));
+        $persenHadir = $hariKerja > 0 ? round(($hadirVal / $hariKerja) * 100, 1) : 100;
+
+        $absensiData = [
+            'hari_kerja' => $hariKerja,
+            'hadir' => $hadirVal,
+            'tidak_hadir' => $alfaVal,
+            'cuti_izin' => $cutiVal,
+            'cuti_sakit' => (float) ($presensi?->cuti_sakit ?? 0),
+            'cuti_tahunan' => (float) ($presensi?->cuti_tahunan ?? 0),
+            'cuti_alasan_penting' => (float) ($presensi?->cuti_alasan_penting ?? 0),
+            'cuti_besar' => (float) ($presensi?->cuti_besar ?? 0),
+            'cuti_bersalin' => (float) (($presensi?->cuti_bersalin_1_2 ?? 0) + ($presensi?->cuti_bersalin_3 ?? 0) + ($presensi?->cuti_bersalin_4_plus ?? 0)),
+            'tl_total' => $tlTotal,
+            'psw_total' => $pswTotal,
+            'tl_detail' => [
+                'TL.1' => (int) ($presensi?->s1 ?? 0),
+                'TL.2' => (int) ($presensi?->s2 ?? 0),
+                'TL.3' => (int) ($presensi?->s3 ?? 0),
+                'TL.4' => (int) ($presensi?->s4 ?? 0),
+                'TL.5' => (int) ($presensi?->s5 ?? 0),
+                'TL.6' => (int) ($presensi?->s6 ?? 0),
+            ],
+            'psw_detail' => [
+                'PSW.1' => (int) ($presensi?->pw1 ?? 0),
+                'PSW.2' => (int) ($presensi?->pw2 ?? 0),
+                'PSW.3' => (int) ($presensi?->pw3 ?? 0),
+                'PSW.4' => (int) ($presensi?->pw4 ?? 0),
+                'PSW.5' => (int) ($presensi?->pw5 ?? 0),
+                'PSW.6' => (int) ($presensi?->pw6 ?? 0),
+            ],
+            'persen_kehadiran' => $persenHadir,
+            'status_validasi' => $presensi?->status_validasi ?? 'valid',
+        ];
+
+        // Deteksi format: associative (dari PerhitunganController) vs flat (legacy)
+        if ($rawRincian && isset($rawRincian['tl'])) {
+            // Format associative → transform ke flat komponen array
+            $komponen = $this->transformRincianToKomponen($rawRincian);
+        } elseif ($rawRincian && isset($rawRincian[0])) {
+            // Format flat (sudah berupa array komponen)
+            $komponen = array_map(function ($k) {
+                return [
+                    'nama' => $k['nama'] ?? $k['Nama'] ?? '-',
+                    'hari' => $k['hari'] ?? $k['JumlahHari'] ?? 0,
+                    'tarif' => $k['tarif'] ?? $k['TarifPerHari'] ?? '0%',
+                    'persen' => $k['persen'] ?? $k['PersenPengurangan'] ?? 0,
+                    'Nama' => $k['Nama'] ?? $k['nama'] ?? '-',
+                    'JumlahHari' => $k['JumlahHari'] ?? $k['hari'] ?? 0,
+                    'TarifPerHari' => $k['TarifPerHari'] ?? $k['tarif'] ?? '0%',
+                    'PersenPengurangan' => (float) str_replace(['%', ','], ['', '.'], (string) ($k['PersenPengurangan'] ?? $k['persen'] ?? 0)),
+                ];
+            }, $rawRincian);
+        } else {
+            $komponen = $this->transformRincianToKomponen(null);
+        }
 
         return [
             'id' => $idSlip,
@@ -86,6 +144,9 @@ class SlipController extends Controller
             'PajakTER' => $pphTer,
             'TabPajak' => 0,
             'JumlahNetto' => $netto,
+            // Rincian tambahan untuk transparansi (dari rincian_potongan associative)
+            'rincianTambahan' => $this->extractRincianTambahan($rawRincian),
+            'absensi' => $absensiData,
         ];
     }
 
@@ -105,9 +166,20 @@ class SlipController extends Controller
         $profilCtrl = new ProfilController();
         $profilData = $profilCtrl->show($request)->getData(true)['profil'] ?? [];
 
-        // Hanya ambil slip milik pegawai ini sendiri (FR-43 & NFR-04)
-        $slips = HasilPerhitungan::where('NIP', $nip)
-            ->with(['presensiBulanan', 'usulanJabatan.jabatan.grade'])
+        // Optimasi: Hanya ambil kolom yang diperlukan dan eager load relasi
+        $slips = HasilPerhitungan::select([
+                'id', 'NIP', 'periode', 'nilai_jabatan', 'persen_p1', 'persen_status',
+                'p1_pertimbang', 'p1_gross', 'pengurangan_rp', 'p1_setelah_potongan',
+                'pajak_pph21', 'pajak_ter', 'p1_netto', 'rincian_potongan',
+                'total_persen_potongan', 'presensi_bulanan_id', 'usulan_jabatan_id', 'created_at'
+            ])
+            ->with([
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6',
+                'usulanJabatan:id,pegawai_nip,jabatan_id',
+                'usulanJabatan.jabatan:id,nama_jabatan,grade_id',
+                'usulanJabatan.jabatan.grade:id,nama_grade'
+            ])
+            ->where('NIP', $nip)
             ->orderByDesc('id')
             ->get();
 
@@ -136,7 +208,9 @@ class SlipController extends Controller
 
         // Uji isolasi akses: Jika parameter id merujuk pada slip id yang ada di DB milik pegawai lain
         if (is_numeric($id)) {
-            $slipLain = HasilPerhitungan::where('id', (int) $id)->first();
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
             if ($slipLain && $slipLain->NIP !== $nip) {
                 return response()->json([
                     'status' => 'error',
@@ -145,8 +219,12 @@ class SlipController extends Controller
             }
         }
 
-        // Cari slip milik pegawai yang sedang login
-        $slip = HasilPerhitungan::where('NIP', $nip)
+        // Optimasi: Eager load relasi yang dibutuhkan untuk menghindari N+1 query
+        $slip = HasilPerhitungan::with([
+                'pegawai:NIP,nama,no_rekening,nama_bank',
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6'
+            ])
+            ->where('NIP', $nip)
             ->where(function ($q) use ($id) {
                 $q->where('periode', $id)
                     ->orWhere('id', $id);
@@ -185,7 +263,9 @@ class SlipController extends Controller
         $nip = $akun->NIP;
 
         if (is_numeric($id)) {
-            $slipLain = HasilPerhitungan::where('id', (int) $id)->first();
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
             if ($slipLain && $slipLain->NIP !== $nip) {
                 return response()->json([
                     'status' => 'error',
@@ -194,7 +274,12 @@ class SlipController extends Controller
             }
         }
 
-        $slip = HasilPerhitungan::where('NIP', $nip)
+        // Optimasi: Eager load relasi yang dibutuhkan untuk PDF generation
+        $slip = HasilPerhitungan::with([
+                'pegawai:NIP,nama,no_rekening,nama_bank',
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6'
+            ])
+            ->where('NIP', $nip)
             ->where(function ($q) use ($id) {
                 $q->where('periode', $id)
                     ->orWhere('id', $id);
@@ -213,12 +298,15 @@ class SlipController extends Controller
         $slipFormatted = $this->formatSlipItem($slip, $profilData, 0);
 
         if ($request->header('Accept') === 'application/pdf' || $request->has('download') || str_contains($request->header('Accept', ''), 'application/octet-stream')) {
-            $pdfContent = $this->generatePdfContent($slip, $slipFormatted);
-            $filename = 'Slip-P1-' . $slip->NIP . '-' . str_replace(' ', '-', $slipFormatted['Periode'] ?? $slip->periode) . '.pdf';
-            return response($pdfContent, 200, [
-                'Content-Type' => 'application/pdf',
+            $isPdf = class_exists(\Barryvdh\DomPDF\Facade\Pdf::class);
+            $content = $this->generatePdfContent($slip, $slipFormatted);
+            $ext = $isPdf ? '.pdf' : '.html';
+            $mime = $isPdf ? 'application/pdf' : 'text/html';
+            $filename = 'Slip-P1-' . $slip->NIP . '-' . str_replace(' ', '-', $slipFormatted['Periode'] ?? $slip->periode) . $ext;
+            return response($content, 200, [
+                'Content-Type' => $mime,
                 'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-                'Content-Length' => strlen($pdfContent),
+                'Content-Length' => strlen($content),
             ]);
         }
 
@@ -261,8 +349,9 @@ class SlipController extends Controller
 
         // Ambil data rekap kehadiran & netto
         $presensi = $slip->presensiBulanan;
-        $hariKerja = (int) ($presensi?->hari_kerja ?? $presensi?->jumlah_hari_kerja ?? 22);
-        $hadir = (int) ($presensi?->hari_hadir ?? $presensi?->jumlah_hadir ?? ($hariKerja - 1));
+        $absensi = $data['absensi'] ?? [];
+        $hariKerja = (int) ($absensi['hari_kerja'] ?? $presensi?->hari_kerja ?? 22);
+        $hadir = (float) ($absensi['hadir'] ?? $presensi?->hadir ?? $presensi?->hari_hadir ?? $hariKerja);
         $tidakHadir = max(0, $hariKerja - $hadir);
         $nettoFloat = (float) ($data['JumlahNetto'] ?? 2488860);
 
@@ -298,13 +387,121 @@ class SlipController extends Controller
             'jumlahNetto'          => number_format($nettoFloat, 0, ',', '.'),
             'terbilang'            => trim($this->angkaKeTerbilang((int) round($nettoFloat))) . ' Rupiah',
             'waktuCetak'           => date('d/m/Y H:i:s'),
+            'tanggalSurat'         => \Illuminate\Support\Carbon::now()->translatedFormat('d F Y'),
             'kodeVerifikasi'       => 'UA-SLIP-' . strtoupper(substr(md5($nomorSlip . $nip), 0, 12)),
+            'komponen'             => $data['komponen'] ?? $this->transformRincianToKomponen(null),
+            'absensi'              => $absensi,
         ];
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.slip_p1', $viewData)
-            ->setPaper('a4', 'portrait');
+        if (class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.slip_p1', $viewData)
+                ->setPaper('a4', 'portrait');
+            return $pdf->output();
+        }
 
-        return $pdf->output();
+        // Fallback: render view HTML jika package barryvdh/laravel-dompdf belum terpasang
+        return view('pdf.slip_p1', $viewData)->render();
+    }
+
+    /**
+     * Download Laporan Absensi Resmi (PDF) milik pegawai untuk periode slip terkait
+     */
+    public function downloadAbsensiPdf(Request $request, string $id): \Symfony\Component\HttpFoundation\Response
+    {
+        $akun = $request->user();
+        if (!$akun || !$akun->NIP) {
+            return response()->json([
+                'message' => 'Akses ditolak: Akun Anda belum ditautkan dengan NIP pegawai.',
+            ], 403);
+        }
+
+        $nip = $akun->NIP;
+        if (is_numeric($id)) {
+            $slipLain = HasilPerhitungan::where('id', (int) $id)
+                ->select('id', 'NIP')
+                ->first();
+            if ($slipLain && $slipLain->NIP !== $nip) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Akses ditolak: Anda tidak memiliki wewenang mengakses laporan absensi pegawai lain.',
+                ], 403);
+            }
+        }
+
+        // Optimasi: Eager load semua relasi yang dibutuhkan untuk PDF absensi
+        $slip = HasilPerhitungan::with([
+                'presensiBulanan:id,NIP,periode,hari_kerja,hadir,alfa,tidak_hadir,cuti_izin,cuti_sakit,cuti_bersalin_1_2,cuti_bersalin_3,cuti_bersalin_4_plus,cuti_alasan_penting,cuti_besar,cuti_tahunan,s1,s2,s3,s4,s5,s6,pw1,pw2,pw3,pw4,pw5,pw6',
+                'usulanJabatan:id,pegawai_nip,jabatan_id',
+                'usulanJabatan.jabatan:id,nama_jabatan,grade_id',
+                'usulanJabatan.jabatan.grade:id,kode_grade,nama_grade',
+                'pegawai:NIP,nama,pangkat_golongan,unit_id',
+                'pegawai.unitKerja:id,nama'
+            ])
+            ->where('NIP', $nip)
+            ->where(function ($q) use ($id) {
+                $q->where('periode', $id)->orWhere('id', $id);
+            })
+            ->first();
+
+        if (!$slip) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data slip/absensi tidak ditemukan.',
+            ], 404);
+        }
+
+        $profilCtrl = new ProfilController();
+        $profilData = $profilCtrl->show($request)->getData(true)['profil'] ?? [];
+        $slipFormatted = $this->formatSlipItem($slip, $profilData, 0);
+        $pegawai = $slipFormatted['pegawai'] ?? [];
+
+        $logoBase64 = '';
+        foreach (glob(public_path('*logo*.{png,jpg,jpeg}'), GLOB_BRACE) ?: [] as $found) {
+            if (file_exists($found) && is_file($found)) {
+                $ext = strtolower(pathinfo($found, PATHINFO_EXTENSION));
+                $mime = ($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png';
+                $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($found));
+                break;
+            }
+        }
+
+        $unitKerja = $pegawai['NamaUnit'] ?? ($slip->pegawai?->unitKerja?->nama ?? 'Fakultas Teknologi Informasi');
+        $nomorSurat = 'ABS-P1/2026/' . (explode('-', (string) $slip->periode)[1] ?? '10') . '/' . sprintf('%04d', $slip->id);
+
+        $viewData = [
+            'logoBase64' => $logoBase64,
+            'nomorSurat' => $nomorSurat,
+            'periode' => $slipFormatted['Periode'] ?? $slip->periode,
+            'nama' => $pegawai['Nama'] ?? ($slip->pegawai?->nama ?? 'Pegawai'),
+            'nip' => $nip,
+            'pangkat' => $pegawai['Pangkat'] ?? ($slip->pegawai?->pangkat_golongan ?? '-'),
+            'jabatan' => $pegawai['NamaJabatan'] ?? ($slip->usulanJabatan?->jabatan?->nama_jabatan ?? '-'),
+            'grade' => $pegawai['KodeGrade'] ?? ($slip->usulanJabatan?->jabatan?->grade?->kode_grade ?? '-'),
+            'unitKerja' => $unitKerja,
+            'absensi' => $slipFormatted['absensi'],
+            'tanggalSurat' => \Illuminate\Support\Carbon::now()->translatedFormat('d F Y'),
+            'waktuCetak' => date('d/m/Y H:i:s'),
+            'kodeVerifikasi' => 'UA-ABS-' . strtoupper(substr(md5($nomorSurat . $nip), 0, 10)),
+        ];
+
+        $isPdf = class_exists(\Barryvdh\DomPDF\Facade\Pdf::class);
+        if ($isPdf) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.laporan_absensi', $viewData)->setPaper('a4', 'portrait');
+            $content = $pdf->output();
+            $ext = '.pdf';
+            $mime = 'application/pdf';
+        } else {
+            $content = view('pdf.laporan_absensi', $viewData)->render();
+            $ext = '.html';
+            $mime = 'text/html';
+        }
+
+        $filename = 'Laporan-Absensi-' . $slip->NIP . '-' . str_replace(' ', '-', $viewData['periode']) . $ext;
+        return response($content, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length' => strlen($content),
+        ]);
     }
 
     private function angkaKeTerbilang(int $angka): string
@@ -348,6 +545,138 @@ class SlipController extends Controller
         $komponen[] = ['nama' => 'Cuti Karena Alasan Penting', 'hari' => 0, 'tarif' => '3%', 'persen' => '0%'];
         $komponen[] = ['nama' => 'Cuti Besar', 'hari' => 0, 'tarif' => '1,5%', 'persen' => '0%'];
         $komponen[] = ['nama' => 'Tidak Hadir Tanpa Keterangan', 'hari' => 0, 'tarif' => '5%', 'persen' => '0%'];
+
+        return $komponen;
+    }
+
+    /**
+     * Extract additional deduction info (CPNS, Tubel, Hukdis, SKP) for
+     * transparent display on the pegawai slip detail page.
+     */
+    private function extractRincianTambahan(?array $rincian): array
+    {
+        if (!$rincian) {
+            return [];
+        }
+
+        $tambahan = [];
+
+        if (!empty($rincian['is_cpns'])) {
+            $tambahan[] = [
+                'label' => 'CPNS / CPT-PTNBH',
+                'persen' => $rincian['cpns_persen'] ?? 20,
+                'nominal' => $rincian['cpns_rp'] ?? 0,
+            ];
+        }
+
+        if (!empty($rincian['is_tubel'])) {
+            $tambahan[] = [
+                'label' => 'Tugas Belajar',
+                'persen' => $rincian['tubel_persen'] ?? 25,
+                'nominal' => $rincian['tubel_rp'] ?? 0,
+            ];
+        }
+
+        if (($rincian['skp_pengurangan_persen'] ?? 0) > 0) {
+            $tambahan[] = [
+                'label' => 'Pengurangan SKP (Capaian ' . ($rincian['skp_capaian'] ?? '-') . '%)',
+                'persen' => $rincian['skp_pengurangan_persen'] ?? 0,
+                'nominal' => $rincian['skp_pengurangan_rp'] ?? 0,
+            ];
+        }
+
+        if (($rincian['persen_hukdis'] ?? 0) > 0) {
+            $tambahan[] = [
+                'label' => 'Hukuman Disiplin',
+                'persen' => $rincian['persen_hukdis'] ?? 0,
+                'nominal' => $rincian['potong_disiplin_rp'] ?? 0,
+            ];
+        }
+
+        return $tambahan;
+    }
+
+    /**
+     * Transformasi rincian_potongan associative (dari PerhitunganController)
+     * menjadi flat komponen array yang siap ditampilkan di frontend & PDF.
+     *
+     * Input format:
+     *   ['tl' => [0,0,...], 'psw' => [0,0,...], 'tarif_tl' => [0.25,0.5,...],
+     *    'cuti' => ['sakit'=>0, 'bersalin12'=>0, ...], ...]
+     *
+     * Output format:
+     *   [['Nama'=>'TL.1','JumlahHari'=>0,'TarifPerHari'=>'0,25%','PersenPengurangan'=>0], ...]
+     */
+    private function transformRincianToKomponen(?array $rincian): array
+    {
+        $tarifTLDefault = [0.25, 0.5, 1.0, 1.5, 2.0, 2.5];
+        $tarifTLLabels = ['0,25%', '0,5%', '1%', '1,5%', '2%', '2,5%'];
+        $cutiTarif = [
+            'sakit'      => ['nama' => 'Cuti Sakit',                        'tarif' => 1.0,  'label' => '1%'],
+            'bersalin12' => ['nama' => 'Cuti Bersalin ke-1 dan ke-2',       'tarif' => 1.0,  'label' => '1%'],
+            'bersalin3'  => ['nama' => 'Cuti Bersalin ke-3',                'tarif' => 2.0,  'label' => '2%'],
+            'bersalin4'  => ['nama' => 'Cuti Bersalin ke-4 dan seterusnya', 'tarif' => 3.0,  'label' => '3%'],
+            'penting'    => ['nama' => 'Cuti Karena Alasan Penting',        'tarif' => 3.0,  'label' => '3%'],
+            'besar'      => ['nama' => 'Cuti Besar',                        'tarif' => 1.5,  'label' => '1,5%'],
+            'alfa'       => ['nama' => 'Tidak Hadir Tanpa Keterangan',      'tarif' => 5.0,  'label' => '5%'],
+        ];
+
+        $tlCounts  = $rincian['tl'] ?? [0, 0, 0, 0, 0, 0];
+        $pswCounts = $rincian['psw'] ?? [0, 0, 0, 0, 0, 0];
+        $tarifArr  = $rincian['tarif_tl'] ?? $tarifTLDefault;
+        $cutiData  = $rincian['cuti'] ?? [];
+
+        $komponen = [];
+
+        // TL.1 s.d TL.6
+        for ($i = 0; $i < 6; $i++) {
+            $hari = (float) ($tlCounts[$i] ?? 0);
+            $tarif = (float) ($tarifArr[$i] ?? $tarifTLDefault[$i]);
+            $persen = round($hari * $tarif, 2);
+            $komponen[] = [
+                'nama'              => 'TL.' . ($i + 1),
+                'hari'              => $hari,
+                'tarif'             => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'persen'            => $persen . '%',
+                'Nama'              => 'TL.' . ($i + 1),
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'PersenPengurangan' => $persen,
+            ];
+        }
+
+        // PSW.1 s.d PSW.6
+        for ($i = 0; $i < 6; $i++) {
+            $hari = (float) ($pswCounts[$i] ?? 0);
+            $tarif = (float) ($tarifArr[$i] ?? $tarifTLDefault[$i]);
+            $persen = round($hari * $tarif, 2);
+            $komponen[] = [
+                'nama'              => 'PSW.' . ($i + 1),
+                'hari'              => $hari,
+                'tarif'             => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'persen'            => $persen . '%',
+                'Nama'              => 'PSW.' . ($i + 1),
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $tarifTLLabels[$i] ?? ($tarif . '%'),
+                'PersenPengurangan' => $persen,
+            ];
+        }
+
+        // Cuti & Alfa
+        foreach ($cutiTarif as $key => $cfg) {
+            $hari = (float) ($cutiData[$key] ?? 0);
+            $persen = round($hari * $cfg['tarif'], 2);
+            $komponen[] = [
+                'nama'              => $cfg['nama'],
+                'hari'              => $hari,
+                'tarif'             => $cfg['label'],
+                'persen'            => $persen . '%',
+                'Nama'              => $cfg['nama'],
+                'JumlahHari'        => $hari,
+                'TarifPerHari'      => $cfg['label'],
+                'PersenPengurangan' => $persen,
+            ];
+        }
 
         return $komponen;
     }

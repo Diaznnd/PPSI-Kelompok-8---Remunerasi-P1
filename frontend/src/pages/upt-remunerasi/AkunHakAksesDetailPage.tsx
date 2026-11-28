@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, User, Shield, Building2, Key, Loader2, Save, Ban, CheckCircle2, XCircle } from "lucide-react"
+import { ArrowLeft, User, Shield, Building2, Key, Loader2, Ban, CheckCircle2, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -142,7 +141,7 @@ export default function AkunHakAksesDetailPage() {
       kepegawaian: "Kepegawaian",
       bendahara: "Bendahara",
       verifikator: "Verifikator",
-      pj_unit: "PJ Unit",
+      penanggung_jawab: "PJ Unit",
     }
     return labels[peran] || peran
   }
@@ -154,7 +153,7 @@ export default function AkunHakAksesDetailPage() {
       kepegawaian: "bg-green-100 text-green-800",
       bendahara: "bg-yellow-100 text-yellow-800",
       verifikator: "bg-orange-100 text-orange-800",
-      pj_unit: "bg-pink-100 text-pink-800",
+      penanggung_jawab: "bg-pink-100 text-pink-800",
     }
     return colors[peran] || "bg-gray-100 text-gray-800"
   }

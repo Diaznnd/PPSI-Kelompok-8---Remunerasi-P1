@@ -54,7 +54,7 @@ class PenerbitanSlipController extends Controller
                     'total_pegawai' => $totalPegawai,
                     'slip_terbit' => $slipTerbitCount,
                     'status_slip' => $statusSlip,
-                    'siap_terbit' => in_array($p->status, ['netto_ditetapkan', 'disetujui', 'selesai']),
+                    'siap_terbit' => in_array($p->status, ['netto_ditetapkan', 'disetujui', 'disahkan', 'selesai']),
                 ];
             });
 

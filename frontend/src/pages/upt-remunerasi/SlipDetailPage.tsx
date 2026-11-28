@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -23,12 +23,7 @@ import {
   RupiahText,
   type ColumnDef,
 } from "./components"
-import {
-  pengajuanUPT,
-  pegawaiHitungSample,
-  rupiah,
-  type PegawaiHitungP1Item,
-} from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
@@ -118,64 +113,14 @@ export default function SlipDetailPage() {
         
         setRows(mappedRows)
       } else {
-        // Fallback to dummy
-        const fallbackItem = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
-        setPengajuan(fallbackItem)
-        const dummyRows: SlipPegawaiRow[] = pegawaiHitungSample.map((p, idx) => ({
-          nip: p.nip,
-          nama: p.nama,
-          grade: p.grade,
-          jabatan: p.jabatan,
-          statusKepegawaian: p.statusKepegawaian,
-          pengaliStatus: p.pengaliStatus,
-          p1Gross: p.p1Gross,
-          pajak: p.pajak,
-          p1Netto: p.netto,
-          netto: p.netto,
-          p1SetelahPotongan: p.p1SetelahPotongan,
-          statusSlip: "belum_terbit" as SlipPegawaiStatus,
-          rekeningMasked: `Bank Nagari •••• ${4821 + idx}`,
-          nilaiJabatan: Math.round(p.p1Gross / (3000 * 0.4)),
-          remunerasiPerJabatan: Math.round(p.p1Gross / 0.4),
-          pajakTer: p.pajak,
-          tabPajak: 0,
-          tarifPajakPersen: p.tarifPajakPersen,
-          rincianKehadiran: p.rincianKehadiran,
-          rincianHukdis: p.rincianHukdis,
-          potonganHukdis: p.potonganHukdis,
-        }))
-        setRows(dummyRows)
+        setPengajuan(null)
+        setRows([])
       }
     } catch (error) {
       console.error("Error fetching slip detail:", error)
-      toast.error("Gagal memuat detail slip. Menggunakan data dummy.")
-      // Fallback
-      const fallbackItem = pengajuanUPT.find((row) => row.id === decodedId) ?? pengajuanUPT[0]
-      setPengajuan(fallbackItem)
-      const dummyRows: SlipPegawaiRow[] = pegawaiHitungSample.map((p, idx) => ({
-        nip: p.nip,
-        nama: p.nama,
-        grade: p.grade,
-        jabatan: p.jabatan,
-        statusKepegawaian: p.statusKepegawaian,
-        pengaliStatus: p.pengaliStatus,
-        p1Gross: p.p1Gross,
-        pajak: p.pajak,
-        p1Netto: p.netto,
-        netto: p.netto,
-        p1SetelahPotongan: p.p1SetelahPotongan,
-        statusSlip: "belum_terbit" as SlipPegawaiStatus,
-        rekeningMasked: `Bank Nagari •••• ${4821 + idx}`,
-        nilaiJabatan: Math.round(p.p1Gross / (3000 * 0.4)),
-        remunerasiPerJabatan: Math.round(p.p1Gross / 0.4),
-        pajakTer: p.pajak,
-        tabPajak: 0,
-        tarifPajakPersen: p.tarifPajakPersen,
-        rincianKehadiran: p.rincianKehadiran,
-        rincianHukdis: p.rincianHukdis,
-        potonganHukdis: p.potonganHukdis,
-      }))
-      setRows(dummyRows)
+      toast.error("Gagal memuat detail slip dari database.")
+      setPengajuan(null)
+      setRows([])
     } finally {
       setLoading(false)
     }
@@ -358,16 +303,8 @@ export default function SlipDetailPage() {
           <span className="font-medium">{rupiah(selectedSlip.p1SetelahPotongan || selectedSlip.p1Gross)}</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
-          <span>Pajak (PPh 21)</span>
-          <span>{rupiah(selectedSlip.pajak)}</span>
-        </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>Pajak TER ({selectedSlip.tarifPajakPersen || 5}%)</span>
-          <span>{rupiah(selectedSlip.pajakTer)}</span>
-        </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>Tabungan Pajak</span>
-          <span>{rupiah(selectedSlip.tabPajak)}</span>
+          <span>Potongan Pajak PPh 21 ({selectedSlip.tarifPajakPersen || 5}%)</span>
+          <span className="text-rose-700 font-medium">- {rupiah(selectedSlip.pajak)}</span>
         </div>
         <div className="flex justify-between text-sm font-bold text-emerald-800 border-t border-emerald-200 pt-1.5">
           <span>Jumlah Netto Diterima</span>

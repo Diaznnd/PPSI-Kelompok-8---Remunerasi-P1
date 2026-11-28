@@ -17,7 +17,7 @@ import {
   daftarPegawai,
   unitKerja,
   akunPenggunaInitial,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 
 type PegawaiItem = (typeof daftarPegawai)[number]

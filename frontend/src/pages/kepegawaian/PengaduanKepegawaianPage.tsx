@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, TabBar } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { warnaAduan } from "@/components/kepegawaian/warna"
-import { KATEGORI_ADU, type AduanKep, type StatusAduan } from "@/data/dummy-kepegawaian"
+import { KATEGORI_ADU, type AduanKep, type StatusAduan } from "@/types/kepegawaian"
 import { useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
@@ -16,8 +16,8 @@ type Tab = "perlu" | "teruskan" | "selesai" | "semua"
 const cocok: Record<Tab, (s: StatusAduan) => boolean> = { perlu: (s) => s === "Diajukan", teruskan: (s) => s === "Diteruskan", selesai: (s) => s === "Selesai", semua: () => true }
 
 export default function PengaduanKepegawaianPage() {
-  const { pengaduan: pengaduanDummy } = useKepeg()
-  const [pengaduan, setPengaduan] = useState<AduanKep[]>(pengaduanDummy)
+  const { pengaduan: defaultPengaduan } = useKepeg()
+  const [pengaduan, setPengaduan] = useState<AduanKep[]>(defaultPengaduan)
   const [tab, setTab] = useState<Tab>("perlu")
   const [q, setQ] = useState("")
   const [kategori, setKategori] = useState("semua")

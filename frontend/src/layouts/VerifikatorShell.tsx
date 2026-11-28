@@ -1,9 +1,7 @@
-import { useState } from "react"
 import { FileCheck2, FileText, Gauge, GitCompareArrows, History, LayoutGrid, ListChecks, MessageSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PERIODE_AKTIF_VERIFIKATOR, PERIODE_VERIFIKATOR, verifikator } from "@/data/dummy-verifikator"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 
 const NAV = [
   { to: "/verifikator/dashboard", label: "Beranda", icon: Gauge },
@@ -21,12 +19,12 @@ const NAV_PORTAL_PEGAWAI = [
 
 export default function VerifikatorShell() {
   const { akun } = useAuth()
-  const [periode, setPeriode] = useState(PERIODE_AKTIF_VERIFIKATOR)
 
-  const nama = akun?.nama || verifikator.nama
+  const nama = akun?.nama || akun?.username || "Tim Verifikator"
   const inisial =
     nama
       .split(" ")
+      .filter((s) => s.length > 0)
       .map((s) => s[0])
       .slice(0, 2)
       .join("")
@@ -48,15 +46,7 @@ export default function VerifikatorShell() {
         peran: "Verifikator",
         unit: unitNama,
       }}
-      headerLeft={
-        <>
-          <span className="hidden text-sm text-muted-foreground sm:inline">Periode:</span>
-          <Select value={periode} onValueChange={setPeriode}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>{PERIODE_VERIFIKATOR.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-          </Select>
-        </>
-      }
+      headerLeft={<NavbarTimePhaseIndicator />}
     />
   )
 }

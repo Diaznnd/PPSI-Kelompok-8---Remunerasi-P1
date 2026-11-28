@@ -13,11 +13,10 @@ import {
   usePeriode,
 } from "./components"
 import {
-  pegawaiHitungSample,
   dokumenConfigInitial,
-  rupiah,
   type UPTPengajuan,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
+import { rupiah } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { toast } from "sonner"
@@ -382,17 +381,17 @@ export default function RekapitulasiUPTPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {pegawaiHitungSample.map((p) => (
-                      <tr key={p.id}>
+                    {selectedUnit && (
+                      <tr>
                         <td className="p-3">
-                          <p className="font-semibold text-foreground">{p.nama}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">{p.nip}</p>
+                          <p className="font-semibold text-foreground">Total Rekapitulasi Unit {selectedUnit.unit}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">{selectedUnit.pegawai} Pegawai</p>
                         </td>
-                        <td className="p-3 text-right tabular-nums whitespace-nowrap">{rupiah(p.p1SetelahPotongan)}</td>
-                        <td className="p-3 text-right tabular-nums whitespace-nowrap">{rupiah(p.pajak)}</td>
-                        <td className="p-3 text-right font-semibold tabular-nums whitespace-nowrap text-emerald-700">{rupiah(p.netto)}</td>
+                        <td className="p-3 text-right tabular-nums whitespace-nowrap">{rupiah(selectedUnit.total)}</td>
+                        <td className="p-3 text-right tabular-nums whitespace-nowrap">{rupiah(selectedUnit.total - selectedUnit.netto)}</td>
+                        <td className="p-3 text-right font-semibold tabular-nums whitespace-nowrap text-emerald-700">{rupiah(selectedUnit.netto)}</td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

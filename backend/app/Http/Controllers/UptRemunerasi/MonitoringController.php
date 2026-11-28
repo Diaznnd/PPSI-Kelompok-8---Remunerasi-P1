@@ -27,26 +27,49 @@ class MonitoringController extends Controller
     {
         $this->authorizeUpt($request);
 
-        $periode = $request->query('periode', now()->format('Y-m'));
+        $periodeInput = $request->query('periode', 'semua');
 
-        $pengajuanList = PengajuanP1::with(['unitKerja', 'riwayatStatus'])
-            ->where('periode', $periode)
-            ->get();
+        $query = PengajuanP1::with(['unitKerja', 'riwayatStatus']);
+        if ($periodeInput && strtolower($periodeInput) !== 'semua') {
+            $bulanMap = [
+                'januari' => '01', 'februari' => '02', 'maret' => '03', 'april' => '04',
+                'mei' => '05', 'juni' => '06', 'juli' => '07', 'agustus' => '08',
+                'september' => '09', 'oktober' => '10', 'november' => '11', 'desember' => '12',
+            ];
+            $periodeNorm = $periodeInput;
+            if (!preg_match('/^\d{4}-\d{2}$/', $periodeInput)) {
+                foreach ($bulanMap as $b => $num) {
+                    if (stripos($periodeInput, $b) !== false) {
+                        preg_match('/(\d{4})/', $periodeInput, $ym);
+                        $periodeNorm = ($ym[1] ?? date('Y')) . '-' . $num;
+                        break;
+                    }
+                }
+            }
+            $query->where(function ($q) use ($periodeInput, $periodeNorm) {
+                $q->where('periode', $periodeInput)->orWhere('periode', $periodeNorm);
+            });
+        }
+
+        $pengajuanList = $query->latest('id')->get();
 
         $unitSemua = UnitKerja::where('aktif', true)->get();
 
-        $monitoring = $unitSemua->map(function ($unit) use ($pengajuanList, $periode) {
+        $monitoring = $unitSemua->map(function ($unit) use ($pengajuanList, $periodeInput) {
             $pengajuan = $pengajuanList->firstWhere('unit_id', $unit->id);
 
             if (!$pengajuan) {
                 return [
+                    'id' => 'UNIT-' . $unit->id,
                     'unit_id' => $unit->id,
                     'unit' => $unit->nama,
-                    'periode' => $periode,
+                    'periode' => $periodeInput === 'semua' ? now()->format('Y-m') : $periodeInput,
                     'status' => 'belum_mengajukan',
                     'progress' => 0,
                     'tahap' => 'Belum Dimulai',
+                    'diajukanPada' => null,
                     'terakhir_diperbarui' => null,
+                    'riwayat' => [],
                 ];
             }
 
@@ -55,9 +78,9 @@ class MonitoringController extends Controller
                 'draft' => 10,
                 'diajukan' => 25,
                 'diverifikasi', 'terverifikasi' => 50,
-                'netto_ditetapkan' => 75,
+                'netto_ditetapkan', 'disahkan' => 75,
                 'disetujui', 'selesai', 'amprah_tersedia' => 100,
-                'ditolak' => 0,
+                'ditolak', 'dikembalikan' => 0,
                 default => 0,
             };
 
@@ -65,28 +88,36 @@ class MonitoringController extends Controller
                 'draft' => 'Persiapan',
                 'diajukan' => 'Menunggu Verifikasi',
                 'diverifikasi', 'terverifikasi' => 'Perhitungan Pajak',
-                'netto_ditetapkan' => 'Menunggu Approval',
+                'netto_ditetapkan', 'disahkan' => 'Disahkan / Penerbitan Slip',
                 'disetujui' => 'Penerbitan Slip',
                 'selesai', 'amprah_tersedia' => 'Selesai',
-                'ditolak' => 'Ditolak',
-                default => 'Unknown',
+                'ditolak', 'dikembalikan' => 'Dikembalikan',
+                default => 'Dalam Proses',
             };
 
             $riwayatTerakhir = $pengajuan->riwayatStatus()->latest('id')->first();
 
             return [
+                'id' => $pengajuan->nomor_pengajuan ?? ('P1-' . $pengajuan->id),
                 'unit_id' => $unit->id,
                 'unit' => $unit->nama,
                 'pengajuan_id' => $pengajuan->id,
-                'periode' => $periode,
+                'periode' => $pengajuan->periode,
                 'status' => $pengajuan->status,
                 'progress' => $progress,
                 'tahap' => $tahap,
                 'bendahara' => $pengajuan->bendahara_nama ?? 'Belum Ditugaskan',
                 'jumlah_pegawai' => HasilPerhitungan::where('pengajuan_id', $pengajuan->id)->count(),
                 'total_bruto' => (float) $pengajuan->total_bruto,
-                'terakhir_diperbarui' => $riwayatTerakhir?->created_at?->diffForHumans() ?? 'Baru dibuat',
-                'catatan' => $riwayatTerakhir?->keterangan,
+                'diajukanPada' => $pengajuan->diajukan_at?->format('d M Y'),
+                'terakhir_diperbarui' => $riwayatTerakhir?->dicatat_at?->diffForHumans() ?? $pengajuan->updated_at?->diffForHumans() ?? 'Baru dibuat',
+                'catatan' => $riwayatTerakhir?->catatan_alasan,
+                'riwayat' => $pengajuan->riwayatStatus->map(fn ($r) => [
+                    'aksi' => $r->ke_status,
+                    'oleh' => $r->NIP ?? 'Sistem',
+                    'waktu' => $r->dicatat_at?->format('d M Y H:i') ?? '-',
+                    'catatan' => $r->catatan_alasan,
+                ])->values(),
             ];
         });
 
@@ -99,7 +130,7 @@ class MonitoringController extends Controller
         ];
 
         return response()->json([
-            'periode' => $periode,
+            'periode' => $periodeInput,
             'ringkasan' => $ringkasan,
             'monitoring' => $monitoring->values(),
             'dimuat_pada' => now()->toIso8601String(),

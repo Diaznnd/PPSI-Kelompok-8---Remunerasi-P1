@@ -1,6 +1,6 @@
-   import { Lock, Building, Globe } from "lucide-react"
+import { Lock, Building, Globe } from "lucide-react"
 import { PageHeader, WarningBanner, Card, CardContent } from "./components"
-import { matrixHakAksesDetail, type MatriksHakAksesRow } from "@/data/dummy-upt"
+import { matrixHakAksesDetail, type MatriksHakAksesRow } from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 
 function PermCell({ perm }: { perm: { lihat: boolean; ubah: boolean } }) {

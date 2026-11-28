@@ -8,14 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar } from "@/components/kepegawaian/ui"
 import { FormPegawaiDialog, NonaktifkanDialog, TugasBelajarDialog } from "@/components/kepegawaian/PegawaiDialogs"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { JENIS_PEGAWAI, STATUS_PEGAWAI, pengaliDari, type PegawaiKep } from "@/data/dummy-kepegawaian"
-import { aktifkanPegawai, useKepeg } from "@/data/store-kepegawaian"
+import { JENIS_PEGAWAI, STATUS_PEGAWAI, pengaliDari, type PegawaiKep } from "@/types/kepegawaian"
+import { aktifkanPegawai } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 
 const UKURAN = 8
 
 export default function PegawaiKepegawaianPage() {
-  const { pegawai: pegawaiDummy } = useKepeg()
   const [loading, setLoading] = useState(true)
   const [pegawai, setPegawai] = useState<any[]>([])
   const [unitKerja, setUnitKerja] = useState<string>("")
@@ -60,9 +59,8 @@ export default function PegawaiKepegawaianPage() {
       setUnitKerja(res.unit_kerja || "")
     } catch (error) {
       console.error("Error fetching pegawai:", error)
-      toast.error("Gagal memuat data pegawai. Menggunakan data dummy.")
-      // Fallback to dummy data
-      setPegawai(pegawaiDummy)
+      toast.error("Gagal memuat data pegawai dari database.")
+      setPegawai([])
     } finally {
       setLoading(false)
     }
@@ -70,7 +68,7 @@ export default function PegawaiKepegawaianPage() {
 
   useEffect(() => {
     fetchPegawai()
-  }, [pegawaiDummy])
+  }, [])
 
   const hasil = useMemo(() => pegawai
     .filter((p) => (p.nama + p.nip + p.email).toLowerCase().includes(q.toLowerCase()))
@@ -121,7 +119,7 @@ export default function PegawaiKepegawaianPage() {
             <Select value={jenis} onValueChange={f(setJenis)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="semua">Semua jenis</SelectItem>{JENIS_PEGAWAI.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}</SelectContent></Select>
             <Select value={status} onValueChange={f(setStatus)}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="semua">Semua status</SelectItem>{STATUS_PEGAWAI.map(([k]) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent></Select>
             <Select value={aktif} onValueChange={f(setAktif)}><SelectTrigger className="w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="aktif">Aktif</SelectItem><SelectItem value="nonaktif">Nonaktif</SelectItem><SelectItem value="semua">Semua</SelectItem></SelectContent></Select>
-            <Button variant="outline" onClick={() => toast.info("Ekspor belum tersambung ke backend (dummy).")}><Download /> Ekspor</Button>
+            <Button variant="outline" onClick={() => toast.info("Fitur ekspor akan segera tersedia.")}><Download /> Ekspor</Button>
           </div>
 
           <div className="overflow-x-auto rounded-lg border">

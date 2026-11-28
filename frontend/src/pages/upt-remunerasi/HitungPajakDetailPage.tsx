@@ -12,6 +12,7 @@ import {
   Lock,
   AlertCircle,
   Loader2,
+  FileText,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -32,14 +33,13 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  pengajuanUPT,
-  pegawaiHitungSample,
-  rupiah,
   type PegawaiHitungP1Item,
   type UPTStatus,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
+import { rupiah } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { LembarVerifikasiModal } from "@/components/upt-remunerasi/LembarVerifikasiModal"
 
 type ValidationFilterKey =
   | "semua"
@@ -53,23 +53,24 @@ export default function HitungPajakDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const decodedId = decodeURIComponent(id ?? "")
-  const basePengajuan = pengajuanUPT.find((row) => row.id === decodedId)
+  const [pengajuan, setPengajuan] = useState<any>(null)
 
-  const [status, setStatus] = useState<UPTStatus>(basePengajuan?.status ?? "terverifikasi")
+  const [status, setStatus] = useState<UPTStatus>("terverifikasi")
   const isAlreadyFinal = status === "netto_ditetapkan" || status === "amprah_tersedia"
   const isReadyToProcess = status === "terverifikasi"
 
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [isCalculated, setIsCalculated] = useState<boolean>(isAlreadyFinal)
   const [hitungError, setHitungError] = useState<string | null>(null)
 
-  const [pegawaiList, setPegawaiList] = useState<PegawaiHitungP1Item[]>(pegawaiHitungSample)
+  const [pegawaiList, setPegawaiList] = useState<PegawaiHitungP1Item[]>([])
   const [activeFilter, setActiveFilter] = useState<ValidationFilterKey>("semua")
 
   const [selectedPegawai, setSelectedPegawai] = useState<PegawaiHitungP1Item | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   const [isConfirmTetapkanOpen, setIsConfirmTetapkanOpen] = useState(false)
+  const [isLembarVerifOpen, setIsLembarVerifOpen] = useState(false)
 
   const [isKoreksiOpen, setIsKoreksiOpen] = useState(false)
   const [koreksiTarget, setKoreksiTarget] = useState<PegawaiHitungP1Item | null>(null)
@@ -83,20 +84,29 @@ export default function HitungPajakDetailPage() {
       try {
         setLoading(true)
         const response = await uptRemunerasiService.getHitungPajakDetail(decodedId)
+        const pengajuanData = response.data?.pengajuan || response.pengajuan || response.data
+        const pegawaiRaw = response.data?.pegawai || response.pegawai || []
         
-        if (response.success && response.data) {
-          // Map pegawai list from API
-          const mappedPegawai: PegawaiHitungP1Item[] = response.data.pegawai.map((p: any) => ({
-            id: p.id.toString(),
+        if (pengajuanData) {
+          setPengajuan(pengajuanData)
+          setStatus(pengajuanData.status || "terverifikasi")
+          const mappedPegawai: PegawaiHitungP1Item[] = (Array.isArray(pegawaiRaw) ? pegawaiRaw : []).map((p: any) => ({
+            id: String(p.id || p.nip),
             nama: p.nama,
             nip: p.nip,
             grade: p.grade,
-            p1Gross: p.p1_gross || 0,
+            jabatan: p.jabatan || "Pegawai",
+            statusKepegawaian: p.status_kepegawaian || p.statusKepegawaian || "PNS",
+            p1Gross: p.bruto || p.p1_gross || 0,
             pengaliStatus: p.pengali_status || 100,
             potonganKehadiran: p.potongan_kehadiran || 0,
+            rincianKehadiran: p.rincian_kehadiran || [],
             potonganHukdis: p.potongan_hukdis || 0,
+            rincianHukdis: p.rincian_hukdis || "",
             totalPotongan: p.total_potongan || 0,
-            p1SetelahPotongan: p.p1_setelah_potongan || 0,
+            persenKetidakhadiran: p.persen_ketidakhadiran || 0,
+            p1SetelahPotongan: p.p1_setelah_potongan || p.bruto || 0,
+            tarifPajakPersen: p.tarif_pajak ? parseFloat(p.tarif_pajak) : (p.tarifPajakPersen || 5),
             pajak: p.pajak || 0,
             netto: p.netto || 0,
             melebihiAmbang50: p.melebihi_ambang_50 || false,
@@ -111,11 +121,12 @@ export default function HitungPajakDetailPage() {
             riwayatKoreksiPajak: p.riwayat_koreksi_pajak || [],
           }))
           setPegawaiList(mappedPegawai)
-          setStatus(response.data.status)
         }
       } catch (error) {
         console.error("Error fetching detail:", error)
-        // Keep using dummy data on error
+        toast.error("Gagal memuat detail pengajuan dari database.")
+        setPengajuan(null)
+        setPegawaiList([])
       } finally {
         setLoading(false)
       }
@@ -126,8 +137,16 @@ export default function HitungPajakDetailPage() {
     }
   }, [decodedId])
 
-  if (!basePengajuan) {
-    return <EmptyHint text="Pengajuan tidak ditemukan." />
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (!pengajuan) {
+    return <EmptyHint text="Pengajuan tidak ditemukan di database." />
   }
 
   const currentStep =
@@ -177,10 +196,11 @@ export default function HitungPajakDetailPage() {
         catatan: "P1 Netto ditetapkan oleh UPT Remunerasi"
       })
 
-      if (response.success) {
+      if (response.success || response.message) {
         setStatus("netto_ditetapkan")
         setIsConfirmTetapkanOpen(false)
-        toast.success("P1 Netto ditetapkan! Slip P1 terbit otomatis untuk seluruh pegawai unit.")
+        setIsLembarVerifOpen(true)
+        toast.success("Pengajuan P1 disahkan! Lembar Verifikasi resmi diterbitkan dan Slip P1 Netto otomatis dirilis ke pegawai.")
       } else {
         toast.error(response.message || "Gagal menetapkan netto.")
       }
@@ -381,25 +401,31 @@ export default function HitungPajakDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="px-0 text-xs gap-1.5"
-          onClick={() => navigate("/upt-remunerasi/hitung")}
-        >
-          <ArrowLeft className="size-4" /> Kembali ke Daftar Pengajuan
-        </Button>
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-0 text-xs gap-1.5"
+              onClick={() => navigate("/upt-remunerasi/hitung")}
+            >
+              <ArrowLeft className="size-4" /> Kembali ke Daftar Pengajuan
+            </Button>
+          </div>
 
       <PageHeader
         title={
           <div className="flex flex-wrap items-center gap-3">
-            <span>{basePengajuan.unit}</span>
+            <span>{pengajuan.unit}</span>
             <StatusBadge status={status} />
           </div>
         }
-        subtitle={`Kode: ${basePengajuan.id} • Periode: ${basePengajuan.periode} • Bendahara: ${basePengajuan.bendahara}`}
+        subtitle={`Kode: ${pengajuan.id || pengajuan.nomor} • Periode: ${pengajuan.periode} • Unit: ${pengajuan.unit}`}
         actions={
           isReadyToProcess ? (
             <div className="flex items-center gap-2">
@@ -414,16 +440,26 @@ export default function HitungPajakDetailPage() {
               <Button
                 size="sm"
                 disabled={!isCalculated}
-                className="gap-1.5"
+                className="gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
                 onClick={() => setIsConfirmTetapkanOpen(true)}
               >
-                <CheckCircle2 className="size-4" /> Tetapkan Netto
+                <CheckCircle2 className="size-4" /> Sahkan & Terbitkan Slip Netto
               </Button>
             </div>
           ) : isAlreadyFinal ? (
-            <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-1">
-              <Lock className="size-3.5" /> Hanya-Baca (Final)
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setIsLembarVerifOpen(true)}
+              >
+                <FileText className="size-4" /> Lembar Verifikasi Resmi
+              </Button>
+              <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-800 px-3 py-1">
+                <Lock className="size-3.5" /> Disahkan UPT
+              </Badge>
+            </div>
           ) : undefined
         }
       />
@@ -442,7 +478,7 @@ export default function HitungPajakDetailPage() {
       {isAlreadyFinal && (
         <WarningBanner variant="info" title="Netto ditetapkan; slip terbit otomatis">
           Perhitungan P1 Netto telah ditetapkan secara final. Seluruh slip P1 pegawai unit{" "}
-          <strong>{basePengajuan.unit}</strong> telah diterbitkan otomatis dan data kini bersifat hanya-baca.
+          <strong>{pengajuan.unit}</strong> telah diterbitkan otomatis dan data kini bersifat hanya-baca.
         </WarningBanner>
       )}
 
@@ -533,7 +569,7 @@ export default function HitungPajakDetailPage() {
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Unit Kerja:</span>
-              <span className="font-semibold">{basePengajuan.unit}</span>
+              <span className="font-semibold">{pengajuan.unit}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Pajak PPh 21:</span>
@@ -758,6 +794,28 @@ export default function HitungPajakDetailPage() {
           </>
         )}
       </DetailDrawer>
+
+      <LembarVerifikasiModal
+        open={isLembarVerifOpen}
+        onOpenChange={setIsLembarVerifOpen}
+        data={{
+          pengajuan: {
+            nomor_pengajuan: pengajuan.id || pengajuan.nomor,
+            unit: pengajuan.unit,
+            periode: pengajuan.periode,
+            jumlah_penerima: pegawaiList.length,
+            jumlah_kotor: totals.setelahPotongan || totals.gross,
+            kelompok: "Tenaga Kependidikan",
+          },
+          pejabat: {
+            nama: "Drs. Imrizal, MM",
+            nip: "196303071985031009",
+            jabatan: "Ketua UPT Remunerasi",
+          },
+        }}
+      />
+        </>
+      )}
     </div>
   )
 }

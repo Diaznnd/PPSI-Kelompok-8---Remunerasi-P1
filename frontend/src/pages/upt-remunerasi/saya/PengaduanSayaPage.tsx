@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { Plus } from "lucide-react"
 import { Panel } from "@/components/pegawai/shared"
@@ -7,10 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { PageHeader, Button } from "../components"
 import {
-  getPengaduanSayaList,
   KATEGORI_PENGADUAN_SAYA,
   type StatusPengaduanSaya,
-} from "@/data/dummy-upt-saya"
+} from "@/types/pegawai"
+import { pegawaiService } from "@/services/pegawaiService"
 import { SayaChip } from "./SayaChip"
 
 const STATUS_STYLE: Record<StatusPengaduanSaya, string> = {
@@ -23,8 +23,24 @@ const STATUS_STYLE: Record<StatusPengaduanSaya, string> = {
 export default function PengaduanSayaPage() {
   const [statusFilter, setStatusFilter] = useState("semua")
   const [kategoriFilter, setKategoriFilter] = useState("semua")
+  const [allList, setAllList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const allList = getPengaduanSayaList()
+  useEffect(() => {
+    const fetchPengaduan = async () => {
+      try {
+        setLoading(true)
+        const data = await pegawaiService.getPengaduanList()
+        if (Array.isArray(data)) setAllList(data)
+      } catch (err) {
+        console.error("Gagal memuat pengaduan:", err)
+        setAllList([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPengaduan()
+  }, [])
 
   const filtered = useMemo(() => {
     return allList.filter(

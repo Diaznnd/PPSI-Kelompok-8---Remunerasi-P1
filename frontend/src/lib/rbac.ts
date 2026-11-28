@@ -47,7 +47,7 @@ export const roleAbilities: Record<Peran, Ability[]> = {
     "dokumen:read-all",
     "dokumen:verify",
   ],
-  pj_unit: [
+  penanggung_jawab: [
     "pengajuan:read-unit",
     "pengajuan:approve-unit",
     "pengajuan:reject-unit",

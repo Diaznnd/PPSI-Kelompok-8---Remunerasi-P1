@@ -8,8 +8,8 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   RefreshCw,
-  Save,
   Loader2,
+  FileText,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -20,6 +20,7 @@ import {
 } from "./components"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Badge } from "@/components/ui/badge"
+import { LembarVerifikasiModal } from "@/components/upt-remunerasi/LembarVerifikasiModal"
 
 const rupiah = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(n)
@@ -88,8 +89,8 @@ export default function AmprahDetailPage() {
 
   const [loading, setLoading] = useState(true)
   const [amprah, setAmprah] = useState<AmprahDetail | null>(null)
-  const [jenisAmprah, setJenisAmprah] = useState<"Reguler" | "Insentif Bulan ke-13" | "THR Kinerja">("Reguler")
   const [isPrintOpen, setIsPrintOpen] = useState(false)
+  const [isLembarVerifOpen, setIsLembarVerifOpen] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -150,7 +151,6 @@ export default function AmprahDetailPage() {
       }
 
       setAmprah(detail)
-      setJenisAmprah(detail.kelompok as any)
     } catch (error) {
       console.error("Error loading amprah detail:", error)
       toast.error("Gagal memuat detail amprah")
@@ -403,8 +403,16 @@ export default function AmprahDetailPage() {
         subtitle={`${nomorAmprah} • Periode ${amprah.periode}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setIsLembarVerifOpen(true)}
+            >
+              <FileText className="size-4" /> Lembar Verifikasi
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setIsPrintOpen(true)} disabled={submitting}>
-              <Printer className="size-4" /> Cetak
+              <Printer className="size-4" /> Cetak Amprah
             </Button>
             <Button
               variant="outline"
@@ -448,6 +456,26 @@ export default function AmprahDetailPage() {
       >
         {documentContent}
       </PrintPreview>
+
+      <LembarVerifikasiModal
+        open={isLembarVerifOpen}
+        onOpenChange={setIsLembarVerifOpen}
+        data={{
+          pengajuan: {
+            nomor_pengajuan: amprah.nomor,
+            unit: amprah.unit_nama,
+            periode: amprah.periode,
+            jumlah_penerima: rows.length,
+            jumlah_kotor: totals.jumlahBruto,
+            kelompok: amprah.kelompok || "Tenaga Kependidikan",
+          },
+          pejabat: {
+            nama: amprah.kepala_upt?.nama || "Drs. Imrizal, MM",
+            nip: amprah.kepala_upt?.nip || "196303071985031009",
+            jabatan: amprah.kepala_upt?.jabatan || "Ketua UPT Remunerasi",
+          },
+        }}
+      />
     </div>
   )
 }

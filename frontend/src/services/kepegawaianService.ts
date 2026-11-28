@@ -41,6 +41,7 @@ export interface UsulanJabatanPayload {
   jabatan_id?: number
   jabatan_baru?: string
   grade_baru?: number | string
+  unit_baru_id?: number | string
   jenis_perubahan: string
   tanggal_berlaku: string
   alasan?: string
@@ -147,6 +148,34 @@ export const kepegawaianService = {
     return res.data
   },
 
+  async getPresensiList(params?: { periode?: string; q?: string; status?: string }) {
+    return this.getPresensi(params)
+  },
+
+  async tambahHukuman(payload: any) {
+    return this.createHukuman(payload)
+  },
+
+  async buatUsulan(payload: any) {
+    if (payload instanceof FormData) {
+      const res = await api.post("/kepegawaian/usulan", payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      return res.data
+    }
+    return this.createUsulan(payload)
+  },
+
+  async ajukanUlangUsulan(id: string | number, payload: any) {
+    if (payload instanceof FormData) {
+      const res = await api.post(`/kepegawaian/usulan/${id}`, payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      return res.data
+    }
+    return this.updateUsulan(id, payload)
+  },
+
   /**
    * L3 (FR-07, NFR-11): Mengimpor berkas rekap presensi dan cuti/izin (.csv / .xlsx / .xls)
    */
@@ -222,6 +251,9 @@ export const kepegawaianService = {
     }
     if (payload.grade_baru !== undefined) {
       formData.append("grade_baru", String(payload.grade_baru))
+    }
+    if (payload.unit_baru_id) {
+      formData.append("unit_baru_id", String(payload.unit_baru_id))
     }
     formData.append("jenis_perubahan", payload.jenis_perubahan)
     formData.append("tanggal_berlaku", payload.tanggal_berlaku)

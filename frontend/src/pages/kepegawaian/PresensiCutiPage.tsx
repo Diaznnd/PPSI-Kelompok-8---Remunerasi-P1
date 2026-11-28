@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { Download, Plus, Printer, Search, TriangleAlert } from "lucide-react"
+import { CheckCircle2, Clock, Download, Plus, Printer, RefreshCw, Search, TriangleAlert, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AreaTeks, Bidang, Dropzone, TabBar } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { usePeriodeKepeg } from "@/layouts/KepegawaianShell"
-import { REKAP_CUTI, hitungPresensi, statusHukuman, type BarisPresensi } from "@/data/dummy-kepegawaian"
-import { persenStr } from "@/data/dummy-bendahara"
+import { REKAP_CUTI, hitungPresensi, statusHukuman, type BarisPresensi } from "@/types/kepegawaian"
+import { persenStr } from "@/types/bendahara"
 import { imporPresensi, koreksiPresensi, useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
@@ -175,7 +175,8 @@ function ImporDialog({ onClose, onSelesai }: { onClose: () => void; onSelesai: (
 
 export default function PresensiCutiPage() {
   const s = useKepeg()
-  const { periode } = usePeriodeKepeg()
+  const { periode: periodeDefault } = usePeriodeKepeg()
+  const [periode, setPeriode] = useState(periodeDefault || "Oktober 2026")
   const [tab, setTab] = useState<"data" | "cuti" | "impor">("data")
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
@@ -203,6 +204,8 @@ export default function PresensiCutiPage() {
   const statusImporAktif = apiData?.status_impor || s.statusImpor
   const barisGagalList: any[] = apiData?.baris_gagal || []
   const reportIdAktif: number | undefined = apiData?.report_id
+  const approvalData = apiData?.approval
+  const statusApproval: string = approvalData?.status || "draft"
 
   const rows = useMemo(
     () => daftarPresensi.map((r: any) => ({ r, ...(r.status && r.pot !== undefined ? { pot: r.pot, status: r.status } : hitungPresensi(r, aktifHukuman)) }))
@@ -215,24 +218,150 @@ export default function PresensiCutiPage() {
   return (
     <>
       <PageHeading
-        title="Presensi & Cuti / Izin"
-        desc="Import rekap presensi dan cuti/izin bulanan sebagai dasar perhitungan P1"
+        title={`Presensi & Cuti / Izin — Periode ${periode}`}
+        desc={`Rekap presensi & cuti/izin bulanan yang digunakan sebagai dasar perhitungan P1 periode ${periode}. Data ini akan divalidasi oleh Penanggung Jawab Unit sebelum perhitungan dimulai.`}
         action={
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => toast.info("Ekspor belum tersambung ke backend (dummy).")}><Download /> Export CSV</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={periode} onValueChange={setPeriode}>
+              <SelectTrigger className="w-44 text-xs">
+                <SelectValue placeholder="Pilih periode P1" />
+              </SelectTrigger>
+              <SelectContent>
+                {DAFTAR_PERIODE.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    P1: {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={() => toast.info("Fitur ekspor akan segera tersedia.")}><Download /> Export CSV</Button>
             <Button variant="outline" onClick={() => window.print()}><Printer /> Cetak</Button>
             <Button onClick={() => setImpor(true)}><Plus /> Import presensi</Button>
           </div>
         }
       />
       <div className="space-y-5">
+        {/* Banner Status Approval PJ Unit */}
+        {statusApproval === "ditolak" && (
+          <div className="rounded-xl border border-red-300 bg-red-50/80 p-4 shadow-xs dark:border-red-900/60 dark:bg-red-950/30">
+            <div className="flex items-start gap-3">
+              <XCircle className="mt-0.5 size-5 shrink-0 text-red-600 dark:text-red-400" />
+              <div className="flex-1 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-semibold text-sm text-red-900 dark:text-red-200">
+                    Rekap Presensi Ditolak oleh Penanggung Jawab Unit
+                  </h4>
+                  <Badge variant="outline" className="border-red-300 bg-red-100 text-red-800 font-semibold">
+                    Status: Ditolak
+                  </Badge>
+                </div>
+                <div className="rounded-lg border border-red-200 bg-white/80 p-3 text-xs text-red-900 dark:border-red-900/40 dark:bg-red-950/50 dark:text-red-200">
+                  <p className="font-semibold text-[11px] uppercase tracking-wider text-red-700 dark:text-red-300">
+                    Catatan Alasan Penolakan:
+                  </p>
+                  <p className="mt-1">
+                    {approvalData?.alasan_penolakan || "Terdapat ketidaksesuaian data presensi. Mohon lakukan perbaikan dan unggah ulang berkas rekap presensi."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-red-800 dark:text-red-300">
+                  <span>Perhitungan P1 oleh Bendahara diblokir hingga berkas diperbaiki dan disetujui ulang.</span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="gap-2"
+                    onClick={() => setImpor(true)}
+                  >
+                    <RefreshCw className="size-3.5" />
+                    Unggah Ulang Perbaikan Presensi
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {statusApproval === "menunggu_approval" && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-4 shadow-xs dark:border-amber-900/60 dark:bg-amber-950/30">
+            <div className="flex items-start gap-3">
+              <Clock className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="flex-1 space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                    Menunggu Persetujuan Penanggung Jawab Unit
+                  </h4>
+                  <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800 font-semibold">
+                    Menunggu Approval
+                  </Badge>
+                </div>
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  Data rekap presensi periode <strong>{periode}</strong> telah berhasil divalidasi. Perhitungan P1 oleh Bendahara saat ini <strong>terkunci</strong> hingga disetujui oleh Penanggung Jawab Unit.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {statusApproval === "disetujui" && (
+          <div className="rounded-xl border border-emerald-300 bg-emerald-50/80 p-4 shadow-xs dark:border-emerald-900/60 dark:bg-emerald-950/30">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div className="flex-1 space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-semibold text-sm text-emerald-900 dark:text-emerald-200">
+                    Rekap Presensi Telah Disetujui PJ Unit
+                  </h4>
+                  <Badge variant="outline" className="border-emerald-300 bg-emerald-100 text-emerald-800 font-semibold">
+                    Disetujui & Siap Hitung
+                  </Badge>
+                </div>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                  Disetujui {approvalData?.approved_by ? `oleh ${approvalData.approved_by}` : ""} {approvalData?.approved_at ? `pada ${approvalData.approved_at}` : ""}. Bendahara unit kini telah diizinkan memproses kalkulasi P1.
+                </p>
+                {approvalData?.catatan_approval && (
+                  <p className="text-[11px] italic text-emerald-700 dark:text-emerald-400">
+                    Catatan PJ Unit: &ldquo;{approvalData.catatan_approval}&rdquo;
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <Panel className="space-y-2 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-primary">Presensi {statusImporAktif.periode} berhasil diimport</p>
+            <p className="text-sm font-semibold text-primary">Presensi {statusImporAktif.periode} {statusImporAktif.pegawai > 0 ? "Tersimpan" : "Belum Diimpor"}</p>
+            <Badge variant="outline" className={cn(
+              statusApproval === "disetujui" ? "border-emerald-300 bg-emerald-100 text-emerald-800" :
+              statusApproval === "ditolak" ? "border-red-300 bg-red-100 text-red-800" :
+              statusApproval === "menunggu_approval" ? "border-amber-300 bg-amber-100 text-amber-800" :
+              "border-slate-300 bg-slate-100 text-slate-800"
+            )}>
+              {statusApproval === "disetujui" ? "Persetujuan: Disetujui" :
+               statusApproval === "ditolak" ? "Persetujuan: Ditolak" :
+               statusApproval === "menunggu_approval" ? "Persetujuan: Menunggu Review" :
+               "Persetujuan: Belum Diajukan"}
+            </Badge>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span>{statusImporAktif.pegawai} pegawai · {statusImporAktif.error} baris error · Siap untuk perhitungan</span><span className="text-muted-foreground">{statusImporAktif.waktu}</span></div>
-          <div className="h-1.5 rounded-full bg-primary" />
-          <p className="text-xs text-muted-foreground">Data telah diteruskan ke Bendahara untuk kalkulasi.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span>{statusImporAktif.pegawai} pegawai · {statusImporAktif.error} baris error</span>
+            <span className="text-muted-foreground">{statusImporAktif.waktu}</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-primary/20 overflow-hidden">
+            <div className={cn(
+              "h-full rounded-full transition-all",
+              statusApproval === "disetujui" ? "bg-emerald-600 w-full" :
+              statusApproval === "ditolak" ? "bg-red-600 w-1/3" :
+              statusApproval === "menunggu_approval" ? "bg-amber-500 w-2/3" :
+              "bg-primary w-1/4"
+            )} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {statusApproval === "disetujui"
+              ? "Data presensi telah disetujui. Bendahara dapat melakukan kalkulasi P1."
+              : statusApproval === "ditolak"
+              ? "Data presensi ditolak oleh Penanggung Jawab Unit. Perhitungan diblokir."
+              : "Status approval presensi mengontrol izin kalkulasi P1 di Bendahara."}
+          </p>
         </Panel>
 
         {barisGagalList.length > 0 && (
@@ -321,15 +450,42 @@ export default function PresensiCutiPage() {
 
           {tab === "impor" && (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[40rem] text-xs">
-                <thead className="bg-muted/50 text-[11px] text-muted-foreground"><tr>{["Periode", "File", "Jml Pegawai", "Error", "Diimport Oleh", "Durasi", "Status Validasi"].map(th)}</tr></thead>
+              <table className="w-full min-w-[48rem] text-xs">
+                <thead className="bg-muted/50 text-[11px] text-muted-foreground">
+                  <tr>{["Periode", "File", "Jml Pegawai", "Error", "Diimport Oleh", "Durasi", "Status Validasi", "Approval PJ Unit"].map(th)}</tr>
+                </thead>
                 <tbody>
-                  {daftarRiwayatImpor.map((i: any, n: number) => (
-                    <tr key={n} className="border-t text-center odd:bg-muted/20">
-                      <td className="px-4 py-3 text-left">{i.periode}</td><td className="px-4 py-3">{i.file}</td><td className="px-4 py-3">{i.pegawai}</td><td className="px-4 py-3">{i.error}</td><td className="px-4 py-3">{i.oleh}</td><td className="px-4 py-3">{i.durasi}</td>
-                      <td className="px-4 py-3"><Badge variant="outline" className={i.error > 0 ? "border-amber-200 bg-amber-100 text-amber-800" : "border-emerald-200 bg-emerald-100 text-emerald-800"}>{i.status}</Badge></td>
-                    </tr>
-                  ))}
+                  {daftarRiwayatImpor.map((i: any, n: number) => {
+                    const stApp = i.status_approval || "draft"
+                    return (
+                      <tr key={n} className="border-t text-center odd:bg-muted/20">
+                        <td className="px-4 py-3 text-left font-medium">{i.periode}</td>
+                        <td className="px-4 py-3">{i.file}</td>
+                        <td className="px-4 py-3">{i.pegawai}</td>
+                        <td className="px-4 py-3">{i.error}</td>
+                        <td className="px-4 py-3">{i.oleh}</td>
+                        <td className="px-4 py-3">{i.durasi}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className={i.error > 0 ? "border-amber-200 bg-amber-100 text-amber-800" : "border-emerald-200 bg-emerald-100 text-emerald-800"}>
+                            {i.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="outline" className={cn(
+                            stApp === "disetujui" ? "border-emerald-300 bg-emerald-100 text-emerald-800" :
+                            stApp === "ditolak" ? "border-red-300 bg-red-100 text-red-800" :
+                            stApp === "menunggu_approval" ? "border-amber-300 bg-amber-100 text-amber-800" :
+                            "border-slate-300 bg-slate-100 text-slate-800"
+                          )}>
+                            {stApp === "disetujui" ? "Disetujui" :
+                             stApp === "ditolak" ? "Ditolak" :
+                             stApp === "menunggu_approval" ? "Menunggu" :
+                             "Draft"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

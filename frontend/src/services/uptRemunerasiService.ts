@@ -28,7 +28,7 @@ export const uptRemunerasiService = {
   },
 
   // ==========================================
-  // 3. HITUNG PAJAK & PENETAPAN NETTO
+  // 3. APPROVAL BERTINGKAT & PENETAPAN NETTO
   // ==========================================
   async getHitungPajakList(periode: string = "2026-10") {
     const res = await api.get("/upt-remunerasi/hitung-pajak", { params: { periode } })
@@ -42,6 +42,16 @@ export const uptRemunerasiService = {
 
   async tetapkanNetto(id: string, payload?: { catatan?: string }) {
     const res = await api.post(`/upt-remunerasi/hitung-pajak/${id}/tetapkan-netto`, payload || {})
+    return res.data
+  },
+
+  async sahkanPengajuan(id: string, payload?: { catatan?: string }) {
+    const res = await api.post(`/upt-remunerasi/hitung-pajak/${id}/sahkan`, payload || {})
+    return res.data
+  },
+
+  async getLembarVerifikasi(id: string) {
+    const res = await api.get(`/upt-remunerasi/hitung-pajak/${id}/lembar-verifikasi`)
     return res.data
   },
 
@@ -116,6 +126,11 @@ export const uptRemunerasiService = {
 
   async updateParameter(id: string | number, nilai: number) {
     const res = await api.put(`/upt-remunerasi/master/parameter/${id}`, { nilai })
+    return res.data
+  },
+
+  async getTarifPajak() {
+    const res = await api.get("/upt-remunerasi/master/tarif-pajak")
     return res.data
   },
 

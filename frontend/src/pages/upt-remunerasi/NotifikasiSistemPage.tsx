@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Bell,
@@ -11,10 +11,11 @@ import {
   Check,
 } from "lucide-react"
 import { PageHeader, Button, Toast } from "./components"
-import { notifikasiSistem, type NotifikasiItem } from "@/data/dummy-upt"
+import type { NotifikasiItem } from "@/types/upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Badge } from "@/components/ui/badge"
 
-const KATEGORI_LABEL: Record<NotifikasiItem["kategori"], string> = {
+const KATEGORI_LABEL: Record<string, string> = {
   pengajuan: "Pengajuan P1",
   usulan_jabatan: "Usulan Jabatan",
   pengaduan: "Pengaduan Eskalasi",
@@ -24,8 +25,22 @@ const KATEGORI_LABEL: Record<NotifikasiItem["kategori"], string> = {
 
 export default function NotifikasiSistemPage() {
   const navigate = useNavigate()
-  const [list, setList] = useState<NotifikasiItem[]>(notifikasiSistem)
+  const [list, setList] = useState<NotifikasiItem[]>([])
   const [filterMode, setFilterMode] = useState<"semua" | "belum_dibaca">("semua")
+
+  useEffect(() => {
+    const fetchNotifikasi = async () => {
+      try {
+        const res = await uptRemunerasiService.getNotifikasi()
+        if (res?.data && Array.isArray(res.data)) {
+          setList(res.data)
+        }
+      } catch (err) {
+        console.error("Gagal memuat notifikasi:", err)
+      }
+    }
+    fetchNotifikasi()
+  }, [])
 
   const unreadCount = useMemo(() => list.filter((n) => !n.dibaca).length, [list])
 

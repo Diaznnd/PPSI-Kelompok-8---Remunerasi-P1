@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { FilePlus2, Lock, Eye, CheckCircle2, AlertTriangle } from "lucide-react"
 import {
   PageHeader,
@@ -22,11 +22,12 @@ import {
 } from "./components"
 import {
   FEATURES,
-  daftarPegawai,
-  unitKerja,
-  periodeUPT,
-  rupiah,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
+import { rupiah, generatePeriodeList } from "@/lib/format"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+
+// Generate period list dynamically
+const periodeUPT = generatePeriodeList(12)
 
 type JenisKoreksi = "kekurangan_bayar" | "kelebihan_bayar"
 type DasarKoreksi = "penetapan_jabatan" | "pengaduan" | "koreksi_absensi"
@@ -138,8 +139,10 @@ export default function KoreksiSusulanPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [detailItem, setDetailItem] = useState<KoreksiSusulanItem | null>(null)
   const [confirmTerbit, setConfirmTerbit] = useState<KoreksiSusulanItem | null>(null)
+  const [unitList, setUnitList] = useState<any[]>([])
+  const [pegawaiList, setPegawaiList] = useState<any[]>([])
 
-  const [formUnit, setFormUnit] = useState(unitKerja[0]?.kode ?? "FT")
+  const [formUnit, setFormUnit] = useState("")
   const [formPeriode, setFormPeriode] = useState(periodeUPT[1] ?? periodeUPT[0] ?? "Oktober 2026")
   const [formPegawaiId, setFormPegawaiId] = useState("")
   const [formJenis, setFormJenis] = useState<JenisKoreksi>("kekurangan_bayar")
@@ -149,12 +152,35 @@ export default function KoreksiSusulanPage() {
   const [formAlasan, setFormAlasan] = useState("")
   const [formError, setFormError] = useState("")
 
+  useEffect(() => {
+    const fetchUnits = async () => {
+      try {
+        const [res, pegRes] = await Promise.all([
+          uptRemunerasiService.getMasterUnits(),
+          uptRemunerasiService.getPegawaiList().catch(() => ({ data: [] })),
+        ])
+        if (res?.data && Array.isArray(res.data)) {
+          setUnitList(res.data)
+          if (res.data.length > 0) {
+            setFormUnit(res.data[0].kode || res.data[0].nama)
+          }
+        }
+        if (pegRes?.data && Array.isArray(pegRes.data)) {
+          setPegawaiList(pegRes.data)
+        }
+      } catch (err) {
+        console.error("Gagal memuat unit:", err)
+      }
+    }
+    fetchUnits()
+  }, [])
+
   const pegawaiDiUnit = useMemo(() => {
-    const unitObj = unitKerja.find((u) => u.kode === formUnit)
-    return daftarPegawai.filter(
-      (p) => p.unit === unitObj?.nama || p.unit === formUnit || p.statusAktif === "aktif"
+    const unitObj = unitList.find((u) => u.kode === formUnit || u.nama === formUnit)
+    return pegawaiList.filter(
+      (p) => p.unit === unitObj?.nama || p.unit === formUnit
     )
-  }, [formUnit])
+  }, [unitList, pegawaiList, formUnit])
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -215,8 +241,8 @@ export default function KoreksiSusulanPage() {
       return
     }
 
-    const peg = daftarPegawai.find((p) => p.id === formPegawaiId)
-    const unitObj = unitKerja.find((u) => u.kode === formUnit)
+    const peg = pegawaiList.find((p) => p.id === formPegawaiId)
+    const unitObj = unitList.find((u) => u.kode === formUnit || u.nama === formUnit)
     const nextIdx = items.length + 1
     const newItem: KoreksiSusulanItem = {
       id: `kor-${Date.now()}`,
@@ -453,8 +479,8 @@ export default function KoreksiSusulanPage() {
                 }}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                {unitKerja.map((u) => (
-                  <option key={u.kode} value={u.kode}>
+                {unitList.map((u) => (
+                  <option key={u.kode || u.nama} value={u.kode || u.nama}>
                     {u.nama}
                   </option>
                 ))}

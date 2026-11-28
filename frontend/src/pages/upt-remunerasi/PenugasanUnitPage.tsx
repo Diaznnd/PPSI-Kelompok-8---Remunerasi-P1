@@ -37,7 +37,7 @@ import {
   type PenugasanPejabat,
   type PersonilNonUnit,
   type StatusEntitas,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 
 export function PenugasanPeranSection() {

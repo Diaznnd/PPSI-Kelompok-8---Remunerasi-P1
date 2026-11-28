@@ -11,6 +11,7 @@ use App\Http\Controllers\Kepegawaian\PengaduanKepegawaianController as Kepegawai
 use App\Http\Controllers\Kepegawaian\PresensiController as KepegawaianPresensiController;
 use App\Http\Controllers\Kepegawaian\StatusPegawaiController as KepegawaianStatusPegawaiController;
 use App\Http\Controllers\Kepegawaian\UsulanJabatanController as KepegawaianUsulanJabatanController;
+use App\Http\Controllers\PenanggungJawab\ApprovalPresensiController;
 use App\Http\Controllers\Pegawai\PengaduanController as PegawaiPengaduanController;
 use App\Http\Controllers\Pegawai\ProfilController as PegawaiProfilController;
 use App\Http\Controllers\Pegawai\SlipController as PegawaiSlipController;
@@ -52,7 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================
     // ROLE PEGAWAI (PORTAL MANDIRI)
     // ========================================================
-    Route::prefix('pegawai')->group(function () {
+    Route::prefix('pegawai')->middleware('peran:pegawai')->group(function () {
         // Profil & Beranda Pegawai
         Route::get('/profil', [PegawaiProfilController::class, 'show']);
         Route::get('/beranda', [PegawaiProfilController::class, 'beranda']);
@@ -61,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/slip', [PegawaiSlipController::class, 'index']);
         Route::get('/slip/{id}', [PegawaiSlipController::class, 'show']);
         Route::get('/slip/{id}/pdf', [PegawaiSlipController::class, 'downloadPdf']);
+        Route::get('/slip/{id}/absensi-pdf', [PegawaiSlipController::class, 'downloadAbsensiPdf']);
 
         // Pengaduan & Layanan
         Route::get('/pengaduan', [PegawaiPengaduanController::class, 'index']);
@@ -124,13 +126,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================
     // ROLE PENANGGUNG JAWAB REMUNERASI UNIT (L7-L11: FR-18, FR-19, FR-20 - HANYA BACA)
     // ========================================================
-    Route::prefix('pj-unit')->middleware('peran:pj_unit')->group(function () {
+    Route::prefix('pj-unit')->middleware('peran:penanggung_jawab')->group(function () {
         Route::get('/dashboard', [PjUnitController::class, 'dashboard']);
         Route::get('/pegawai', [PjUnitController::class, 'pegawai']);               // L7 (FR-20)
         Route::get('/status', [PjUnitController::class, 'statusPengajuan']);        // L8 (FR-18)
         Route::get('/rekapitulasi', [PjUnitController::class, 'rekapitulasi']);     // L9 (FR-19)
         Route::get('/rekapitulasi/export', [PjUnitController::class, 'exportRekapitulasi']);
         Route::get('/uji-silang-p1', [PjUnitController::class, 'ujiSilangEngineP1']); // L11
+
+        // Approval Rekap Absensi
+        Route::get('/approval-presensi', [ApprovalPresensiController::class, 'index']);
+        Route::get('/approval-presensi/{id}', [ApprovalPresensiController::class, 'show']);
+        Route::post('/approval-presensi/{id}/approve', [ApprovalPresensiController::class, 'approve']);
+        Route::post('/approval-presensi/{id}/reject', [ApprovalPresensiController::class, 'reject']);
 
         // L10: Penolakan tegas terhadap seluruh percobaan modifikasi data (Hanya Baca / Read-Only)
         Route::match(['post', 'put', 'patch', 'delete'], '/pegawai/{any?}', [PjUnitController::class, 'rejectWriteAction'])->where('any', '.*');
@@ -142,11 +150,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================
     // ROLE BENDAHARA (PERHITUNGAN, PENGAJUAN, STATUS, AMPRAH, REKAPITULASI)
     // ========================================================
-    Route::prefix('bendahara')->group(function () {
+    Route::prefix('bendahara')->middleware('peran:bendahara')->group(function () {
         Route::get('/dashboard', [BendaharaDashboardController::class, 'index']);
         Route::get('/kesiapan', [BendaharaPerhitunganController::class, 'kesiapan']);
         Route::post('/hitung', [BendaharaPerhitunganController::class, 'hitung']);
         Route::get('/pratinjau', [BendaharaPerhitunganController::class, 'pratinjau']);
+        Route::get('/ekspor-excel', [BendaharaPerhitunganController::class, 'eksporExcel']);
         Route::put('/koreksi-presensi/{nip}', [BendaharaPerhitunganController::class, 'koreksiPresensi']);
         Route::post('/ajukan', [BendaharaPerhitunganController::class, 'ajukan']);
         Route::get('/status', [BendaharaStatusPengajuanController::class, 'index']);
@@ -193,7 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================
     // ROLE UPT REMUNERASI (PUSAT / TINGKAT UNIVERSITAS)
     // ========================================================
-    Route::prefix('upt-remunerasi')->group(function () {
+    Route::prefix('upt-remunerasi')->middleware('peran:upt_remunerasi')->group(function () {
         // Dashboard
         Route::get('/dashboard', [UptDashboardController::class, 'index']);
 
@@ -202,10 +211,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/penetapan-jabatan/{id}', [UptPenetapanJabatanController::class, 'show']);
         Route::post('/penetapan-jabatan/{id}/tetapkan', [UptPenetapanJabatanController::class, 'tetapkan']);
 
-        // Hitung Pajak & Penetapan Netto
+        // Approval Bertingkat Pengajuan & Penetapan Netto
         Route::get('/hitung-pajak', [UptHitungPajakController::class, 'index']);
         Route::get('/hitung-pajak/{id}', [UptHitungPajakController::class, 'detail']);
         Route::post('/hitung-pajak/{id}/tetapkan-netto', [UptHitungPajakController::class, 'tetapkanNetto']);
+        Route::post('/hitung-pajak/{id}/sahkan', [UptHitungPajakController::class, 'tetapkanNetto']);
+        Route::get('/hitung-pajak/{id}/lembar-verifikasi', [UptHitungPajakController::class, 'lembarVerifikasi']);
 
         // Penerbitan Slip P1
         Route::get('/penerbitan-slip', [UptPenerbitanSlipController::class, 'index']);
@@ -227,6 +238,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/master/parameter', [UptMasterDataController::class, 'listParameters']);
         Route::put('/master/parameter/{id}', [UptMasterDataController::class, 'updateParameter']);
+        
+        Route::get('/master/tarif-pajak', [UptMasterDataController::class, 'listTarifPajak']);
 
         // Manajemen Akun & Hak Akses (RBAC)
         Route::get('/akun', [UptManajemenAkunController::class, 'index']);
