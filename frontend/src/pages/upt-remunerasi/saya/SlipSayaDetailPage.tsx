@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, ChevronDown, ChevronUp, Download, MessageSquare, Printer } from "lucide-react"
 import { toast } from "sonner"
@@ -10,12 +10,10 @@ import {
   PrintPreview,
   RupiahText,
 } from "../components"
-import {
-  daftarSlipSaya,
-  profilSaya,
-  type KomponenPenguranganItem,
-} from "@/data/dummy-upt-saya"
-import { rupiah } from "@/data/dummy-upt"
+import type { KomponenPenguranganItem } from "@/types/pegawai"
+import { rupiah } from "@/lib/format"
+import { pegawaiService } from "@/services/pegawaiService"
+import { useAuth } from "@/context/AuthContext"
 import { SayaChip } from "./SayaChip"
 
 function Seksi({ no, judul, desk, children }: { no: string; judul: string; desk: string; children: ReactNode }) {
@@ -89,10 +87,55 @@ function TabelKomponenPengurangan({
 export default function SlipSayaDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const slip = daftarSlipSaya.find((s) => s.id === id)
+  const { akun } = useAuth()
+  const user = akun as any
+  const [slip, setSlip] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   const [showAllKomponen, setShowAllKomponen] = useState(false)
   const [printOpen, setPrintOpen] = useState(false)
+
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        setLoading(true)
+        if (id) {
+          const data = await pegawaiService.getSlipDetail(id)
+          setSlip(data)
+        }
+      } catch (err) {
+        console.error("Gagal memuat slip:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDetail()
+  }, [id])
+
+  const profilSaya = {
+    nama: user?.nama || user?.name || "Pegawai",
+    inisial: (user?.nama || user?.name || "P").substring(0, 2).toUpperCase(),
+    nip: user?.NIP || user?.nip || "-",
+    unit: user?.unit?.nama || user?.unit_kerja || "UPT Remunerasi",
+    jabatan: user?.jabatan || "Pengelola Remunerasi",
+    grade: user?.grade || 9,
+    nilaiJabatan: user?.nilai_jabatan || 1453,
+    statusKepegawaian: user?.status_kepegawaian || "PNS",
+    pangkat: user?.pangkat_golongan || "Penata Muda Tk. I / III/b",
+    npwpMasked: user?.npwp ? user.npwp.substring(0, 4) + "••••" : "-",
+    rekeningMasked: user?.nomor_rekening ? "Bank Nagari •••• " + user.nomor_rekening.slice(-4) : "Bank Nagari •••• 5678",
+    remunerasiJabatan: slip?.remunerasiJabatan || slip?.bruto || 0,
+    p140: slip?.p140 || Math.round((slip?.bruto || 0) * 0.4),
+    pengaliStatus: 100,
+  }
+
+  if (loading) {
+    return (
+      <Panel>
+        <p className="text-sm text-muted-foreground">Memuat detail slip...</p>
+      </Panel>
+    )
+  }
 
   if (!slip) {
     return (
@@ -105,10 +148,14 @@ export default function SlipSayaDetailPage() {
     )
   }
 
+  const tl = slip.tl || []
+  const psw = slip.psw || []
+  const ketidakhadiran = slip.ketidakhadiran || []
+
   const adaPengurangan =
-    slip.tl.some((x) => x.hari > 0) ||
-    slip.psw.some((x) => x.hari > 0) ||
-    slip.ketidakhadiran.some((x) => x.hari > 0)
+    tl.some((x: any) => x.hari > 0) ||
+    psw.some((x: any) => x.hari > 0) ||
+    ketidakhadiran.some((x: any) => x.hari > 0)
 
   const isZeroCondition = Boolean(slip.ambangLebih50Persen || slip.hukumanDisiplin?.tingkat === "Berat")
 
@@ -227,9 +274,9 @@ export default function SlipSayaDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <TabelKomponenPengurangan judul="Keterlambatan (TL)" items={slip.tl} showAll={showAllKomponen} />
-              <TabelKomponenPengurangan judul="Pulang Sebelum Waktunya (PSW)" items={slip.psw} showAll={showAllKomponen} />
-              <TabelKomponenPengurangan judul="Ketidakhadiran" items={slip.ketidakhadiran} showAll={showAllKomponen} />
+              <TabelKomponenPengurangan judul="Keterlambatan (TL)" items={tl} showAll={showAllKomponen} />
+              <TabelKomponenPengurangan judul="Pulang Sebelum Waktunya (PSW)" items={psw} showAll={showAllKomponen} />
+              <TabelKomponenPengurangan judul="Ketidakhadiran" items={ketidakhadiran} showAll={showAllKomponen} />
             </div>
           )}
 
@@ -237,13 +284,13 @@ export default function SlipSayaDetailPage() {
             <div>
               <span className="text-muted-foreground">Total Persentase Pengurangan: </span>
               <span className="font-semibold tabular-nums">
-                {slip.totalPersenPengurangan.toLocaleString("id-ID")}%
+                {(slip.totalPersenPengurangan || 0).toLocaleString("id-ID")}%
               </span>
             </div>
             <div>
               <span className="text-muted-foreground">Pengurangan Kehadiran: </span>
               <span className="font-semibold tabular-nums text-rose-700">
-                − {rupiah(slip.penguranganKehadiranRp)}
+                − {rupiah(slip.penguranganKehadiranRp || 0)}
               </span>
             </div>
           </div>

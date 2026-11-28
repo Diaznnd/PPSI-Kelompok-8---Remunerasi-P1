@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
   ArrowLeft,
@@ -12,13 +12,9 @@ import { toast } from "sonner"
 import { Field, Panel } from "@/components/pegawai/shared"
 import { Badge } from "@/components/ui/badge"
 import { PageHeader, Button, WarningBanner } from "../components"
-import {
-  addPesanPengaduanSaya,
-  getPengaduanSayaList,
-  profilSaya,
-  type PengaduanSayaPesan,
-  type StatusPengaduanSaya,
-} from "@/data/dummy-upt-saya"
+import type { PengaduanSayaPesan, StatusPengaduanSaya } from "@/types/pegawai"
+import { pegawaiService } from "@/services/pegawaiService"
+import { useAuth } from "@/context/AuthContext"
 import { SayaChip } from "./SayaChip"
 
 const STATUS_STYLE: Record<StatusPengaduanSaya, string> = {
@@ -30,11 +26,43 @@ const STATUS_STYLE: Record<StatusPengaduanSaya, string> = {
 
 export default function PengaduanSayaDetailPage() {
   const { id } = useParams()
-  const item = getPengaduanSayaList().find((p) => p.nomor === id)
+  const { akun: user } = useAuth()
+  const [item, setItem] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
-  const [pesanList, setPesanList] = useState<PengaduanSayaPesan[]>(item?.pesan ?? [])
+  const [pesanList, setPesanList] = useState<PengaduanSayaPesan[]>([])
   const [keteranganBaru, setKeteranganBaru] = useState("")
   const [lampiranBaru, setLampiranBaru] = useState("")
+
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        setLoading(true)
+        if (id) {
+          const data = await pegawaiService.getPengaduanDetail(id)
+          setItem(data)
+          if (data?.pesan && Array.isArray(data.pesan)) {
+            setPesanList(data.pesan)
+          } else if (data?.percakapan && Array.isArray(data.percakapan)) {
+            setPesanList(data.percakapan)
+          }
+        }
+      } catch (err) {
+        console.error("Gagal memuat detail pengaduan:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDetail()
+  }, [id])
+
+  if (loading) {
+    return (
+      <Panel>
+        <p className="text-sm text-muted-foreground">Memuat detail pengaduan...</p>
+      </Panel>
+    )
+  }
 
   if (!item) {
     return (
@@ -49,25 +77,31 @@ export default function PengaduanSayaDetailPage() {
 
   const isSelesai = item.status === "Selesai"
 
-  const handleKirimKeterangan = (e: React.FormEvent) => {
+  const handleKirimKeterangan = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!keteranganBaru.trim()) {
       toast.error("Keterangan tambahan tidak boleh kosong.")
       return
     }
-    const pesanBaru: PengaduanSayaPesan = {
-      id: `psn-${Date.now()}`,
-      pengirim: profilSaya.nama,
-      peran: "Pegawai Pengaju",
-      waktu: "15 Nov 2026, 21.20 WIB",
-      isi: keteranganBaru.trim(),
-      lampiran: lampiranBaru || undefined,
+    try {
+      if (id) {
+        await pegawaiService.tanggapiPengaduan(id, { pesan: keteranganBaru.trim() })
+      }
+      const pesanBaru: PengaduanSayaPesan = {
+        id: `psn-${Date.now()}`,
+        pengirim: user?.nama || user?.name || "Saya",
+        peran: "Pegawai Pengaju",
+        waktu: new Date().toLocaleString("id-ID"),
+        isi: keteranganBaru.trim(),
+        lampiran: lampiranBaru || undefined,
+      }
+      setPesanList((prev) => [...prev, pesanBaru])
+      setKeteranganBaru("")
+      setLampiranBaru("")
+      toast.success("Keterangan tambahan berhasil dikirim.")
+    } catch (err: any) {
+      toast.error("Gagal mengirim tanggapan.")
     }
-    addPesanPengaduanSaya(item.nomor, pesanBaru)
-    setPesanList((prev) => [...prev, pesanBaru])
-    setKeteranganBaru("")
-    setLampiranBaru("")
-    toast.success("Keterangan tambahan berhasil dikirim.")
   }
 
   return (
@@ -150,7 +184,7 @@ export default function PengaduanSayaDetailPage() {
             <h2 className="text-base font-semibold text-foreground">Tanggapan dan Keterangan</h2>
             <div className="space-y-3 border-t pt-4">
               {pesanList.map((psn) => {
-                const isSelf = psn.pengirim === profilSaya.nama
+                const isSelf = psn.pengirim === (user?.nama || "Saya")
                 return (
                   <div
                     key={psn.id}

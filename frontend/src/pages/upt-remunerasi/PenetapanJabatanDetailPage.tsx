@@ -19,17 +19,12 @@ import {
   StatusBadge,
   Button,
   WarningBanner,
-  ConfirmDialog,
   FormDialog,
   RupiahText,
   Card,
   CardContent,
 } from "./components"
-import {
-  usulanJabatanDetailList,
-  rupiah,
-  type UsulanJabatanDetailItem,
-} from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
@@ -99,10 +94,8 @@ export default function PenetapanJabatanDetailPage() {
       setData(mapped)
     } catch (error) {
       console.error("Error fetching usulan detail:", error)
-      toast.error("Gagal memuat detail usulan. Menggunakan data dummy.")
-      // Fallback to dummy data
-      const fallback = usulanJabatanDetailList.find((u) => u.id === id) || usulanJabatanDetailList[0]
-      setData(fallback)
+      toast.error("Gagal memuat detail usulan.")
+      setData(null)
     } finally {
       setLoading(false)
     }

@@ -11,6 +11,7 @@ import LoginPage from "@/pages/login/LoginPage"
 import Dashboard from "@/pages/Dashboard"
 import ExampleRBACPage from "@/pages/ExampleRBACPage"
 import UnauthorizedPage from "@/pages/UnauthorizedPage"
+import SystemErrorPage from "@/pages/SystemErrorPage"
 import { ProtectedRoute } from "@/components/rbac"
 import BerandaPage from "@/pages/pegawai/BerandaPage"
 import SlipListPage from "@/pages/pegawai/SlipListPage"
@@ -68,7 +69,6 @@ import JejakAuditUPTPage from "@/pages/upt-remunerasi/JejakAuditPage"
 import PeriodePembayaranPage from "@/pages/upt-remunerasi/PeriodePembayaranPage"
 import DokumenTemplatePage from "@/pages/upt-remunerasi/DokumenTemplatePage"
 import DataPegawaiUPTPage from "@/pages/upt-remunerasi/DataPegawaiPage"
-import NotifikasiSistemPage from "@/pages/upt-remunerasi/NotifikasiSistemPage"
 import AkunSayaPage from "@/pages/upt-remunerasi/AkunSayaPage"
 import PenetapanJabatanDetailPage from "@/pages/upt-remunerasi/PenetapanJabatanDetailPage"
 import UptPengaduanDetailPage from "@/pages/upt-remunerasi/PengaduanDetailPage"
@@ -85,6 +85,7 @@ import SlipSayaDetailPage from "@/pages/upt-remunerasi/saya/SlipSayaDetailPage"
 import PengaduanSayaPage from "@/pages/upt-remunerasi/saya/PengaduanSayaPage"
 import PengaduanSayaBaruPage from "@/pages/upt-remunerasi/saya/PengaduanSayaBaruPage"
 import PengaduanSayaDetailPage from "@/pages/upt-remunerasi/saya/PengaduanSayaDetailPage"
+import ApprovalPresensiPage from "@/pages/pj-unit/ApprovalPresensiPage"
 
 type Opsi = { shell?: ReactElement; dashboard?: ReactElement; halaman?: RouteObject[] }
 
@@ -106,11 +107,12 @@ export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   { path: "/unauthorized", element: <UnauthorizedPage /> },
   { path: "/pj_unit/*", element: <Navigate to="/pj-unit/dashboard" replace /> },
+  { path: "/penanggung_jawab/*", element: <Navigate to="/pj-unit/dashboard" replace /> },
   { path: "/upt_remunerasi/*", element: <Navigate to="/upt-remunerasi/dashboard" replace /> },
   {
     path: "/rbac-demo",
     element: (
-      <ProtectedRoute anyRole={["pegawai", "kepegawaian", "bendahara", "verifikator", "pj_unit", "upt_remunerasi"]}>
+      <ProtectedRoute anyRole={["pegawai", "kepegawaian", "bendahara", "verifikator", "penanggung_jawab", "upt_remunerasi"]}>
         <ExampleRBACPage />
       </ProtectedRoute>
     ),
@@ -166,10 +168,11 @@ export const router = createBrowserRouter([
       { path: "verifikator/audit", element: <JejakAuditPage /> },
     ],
   }),
-  grup("pj-unit", "pj_unit", {
+  grup("pj-unit", "penanggung_jawab", {
     shell: <PjUnitShell />,
     dashboard: <BerandaPjUnitPage />,
     halaman: [
+      { path: "pj-unit/approval-presensi", element: <ApprovalPresensiPage /> },
       { path: "pj-unit/pegawai", element: <DataPegawaiPage /> },
       { path: "pj-unit/status", element: <StatusPengajuanUnitPage /> },
       { path: "pj-unit/rekapitulasi", element: <RekapitulasiPage /> },
@@ -218,4 +221,5 @@ export const router = createBrowserRouter([
       { path: "upt-remunerasi/pengaduan-saya/:id", element: <PengaduanSayaDetailPage /> },
     ],
   }),
+  { path: "*", element: <SystemErrorPage />, errorElement: <SystemErrorPage /> },
 ])

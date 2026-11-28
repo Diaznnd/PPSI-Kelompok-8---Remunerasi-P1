@@ -133,12 +133,14 @@ class DashboardController extends Controller
                 'hukuman_disiplin' => $hukdisCount,
             ],
             'kesiapan' => [
-                'presensi_siap' => $presensiReport !== null,
+                'presensi_siap' => (bool) ($presensiReport?->siap_perhitungan ?? false),
+                'presensi_terimpor' => $presensiReport !== null,
+                'status_approval' => $presensiReport?->status_approval ?? 'belum_ada',
                 'waktu_unggah' => $presensiReport?->dimpor_at?->format('d F Y, H.i') ?? 'Belum diunggah',
             ],
             'jadwal' => [
-                ['tgl' => '1–5', 'judul' => 'Rekap absensi oleh Kepegawaian', 'status' => 'Selesai'],
-                ['tgl' => '6–8', 'judul' => 'Perhitungan & Pengajuan oleh Bendahara', 'status' => 'Berjalan'],
+                ['tgl' => '1–5', 'judul' => 'Rekap absensi & Approval PJ Unit', 'status' => $presensiReport?->status_approval === 'disetujui' ? 'Selesai' : ($presensiReport ? 'Menunggu Approval' : 'Belum Selesai')],
+                ['tgl' => '6–8', 'judul' => 'Perhitungan & Pengajuan oleh Bendahara', 'status' => $presensiReport?->status_approval === 'disetujui' ? 'Siap Dijalankan' : 'Terkunci'],
                 ['tgl' => '9–13', 'judul' => 'Verifikasi dan Amprah', 'status' => 'Akan datang'],
             ],
         ]);

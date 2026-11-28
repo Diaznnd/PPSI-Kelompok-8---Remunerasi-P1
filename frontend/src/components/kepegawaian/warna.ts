@@ -1,4 +1,4 @@
-import type { StatusAduan, StatusUsulan } from "@/data/dummy-kepegawaian"
+import type { StatusAduan, StatusUsulan } from "@/types/kepegawaian"
 
 export const warnaUsulan: Record<StatusUsulan, string> = {
   Diajukan: "border-sky-200 bg-sky-100 text-sky-800",
@@ -9,6 +9,8 @@ export const warnaUsulan: Record<StatusUsulan, string> = {
 
 export const warnaAduan: Record<StatusAduan, string> = {
   Diajukan: "border-sky-200 bg-sky-100 text-sky-800",
+  Menunggu: "border-sky-200 bg-sky-100 text-sky-800",
+  Ditanggapi: "border-amber-200 bg-amber-100 text-amber-800",
   Diteruskan: "border-purple-200 bg-purple-100 text-purple-800",
   Selesai: "border-emerald-200 bg-emerald-100 text-emerald-800",
 }

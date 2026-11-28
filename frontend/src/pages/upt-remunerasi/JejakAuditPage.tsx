@@ -22,7 +22,7 @@ import {
 import {
   type JejakAuditItem,
   type JejakAuditAksi,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 

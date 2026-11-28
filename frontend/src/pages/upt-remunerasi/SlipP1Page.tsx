@@ -9,14 +9,9 @@ import {
   Input,
   usePeriode,
 } from "./components"
-import {
-  pengajuanUPT,
-  periodeUPT,
-  unitKerja,
-  type UPTPengajuan,
-} from "@/data/dummy-upt"
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
+import { generatePeriodeList } from "@/lib/format"
 
 type SlipBatchStatus = "terbit" | "gagal_sebagian" | "belum_terbit"
 
@@ -59,6 +54,9 @@ export default function SlipP1Page() {
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
   const [search, setSearch] = useState("")
+  
+  // Generate period list dynamically
+  const periodeUPT = useMemo(() => generatePeriodeList(12), [])
 
   useEffect(() => {
     fetchPenerbitan()
@@ -73,9 +71,8 @@ export default function SlipP1Page() {
       setPengajuanList(res.data || [])
     } catch (error) {
       console.error("Error fetching penerbitan slip:", error)
-      toast.error("Gagal memuat data slip. Menggunakan data dummy.")
-      // Fallback to dummy data
-      setPengajuanList(pengajuanUPT)
+      toast.error("Gagal memuat data slip.")
+      setPengajuanList([])
     } finally {
       setLoading(false)
     }
@@ -146,9 +143,9 @@ export default function SlipP1Page() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Unit Kerja</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {Array.from(new Set(pengajuanList.map((p) => p.unit).filter(Boolean))).map((u) => (
+              <option key={u} value={u}>
+                {u}
               </option>
             ))}
           </select>

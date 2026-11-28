@@ -79,13 +79,18 @@ class HitungPajakController extends Controller
             ->get()
             ->map(function ($h) {
                 $bruto = (float) $h->p1_setelah_potongan;
+                $pangkatGol = (string) ($h->pegawai?->pangkat_golongan ?? '');
 
-                // Hitung Pajak TER simulasi jika belum ada
-                $tarifPersen = 5; // Default tarif PPh 21 Pasal 21 PNS / TER
-                if ($bruto > 10000000) {
+                // Hitung Pajak PPh 21 Berdasarkan Golongan (Tabel Potongan Pajak Page 2)
+                $tarifPersen = 5;
+                if (preg_match('/\bIV\/[a-e]\b/i', $pangkatGol) || str_contains($pangkatGol, 'IV/') || stripos($pangkatGol, 'Pembina') !== false) {
                     $tarifPersen = 15;
-                } elseif ($bruto > 5000000) {
-                    $tarifPersen = 10;
+                } elseif (preg_match('/\bIII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'III/') || stripos($pangkatGol, 'Penata') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'II/') || stripos($pangkatGol, 'Pengatur') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bI\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'I/') || stripos($pangkatGol, 'Juru') !== false) {
+                    $tarifPersen = 0;
                 }
 
                 $pajak = (float) ($h->pajak_pph21 ?? round(($bruto * $tarifPersen) / 100));
@@ -103,6 +108,7 @@ class HitungPajakController extends Controller
                     'tarif_pajak' => $tarifPersen . '%',
                     'pajak' => $pajak,
                     'netto' => $netto,
+                    'slip_terbit' => $h->slip_terbit_at !== null,
                     'status_hitung' => $h->pajak_pph21 !== null ? 'Dihitung' : 'Simulasi',
                 ];
             });
@@ -138,18 +144,26 @@ class HitungPajakController extends Controller
             $pengajuan = PengajuanP1::with('unitKerja')->findOrFail($id);
             $user = $request->user();
 
-            $hasilList = HasilPerhitungan::where('pengajuan_id', $pengajuan->id)->get();
+            $now = Carbon::now();
+            $hasilList = HasilPerhitungan::with('pegawai')->where('pengajuan_id', $pengajuan->id)->get();
 
             $totalPajak = 0;
             $totalNetto = 0;
 
             foreach ($hasilList as $h) {
                 $bruto = (float) $h->p1_setelah_potongan;
+                $pangkatGol = (string) ($h->pegawai?->pangkat_golongan ?? '');
+
+                // Hitung Pajak PPh 21 Berdasarkan Golongan (Tabel Potongan Pajak Page 2)
                 $tarifPersen = 5;
-                if ($bruto > 10000000) {
+                if (preg_match('/\bIV\/[a-e]\b/i', $pangkatGol) || str_contains($pangkatGol, 'IV/') || stripos($pangkatGol, 'Pembina') !== false) {
                     $tarifPersen = 15;
-                } elseif ($bruto > 5000000) {
-                    $tarifPersen = 10;
+                } elseif (preg_match('/\bIII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'III/') || stripos($pangkatGol, 'Penata') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bII\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'II/') || stripos($pangkatGol, 'Pengatur') !== false) {
+                    $tarifPersen = 5;
+                } elseif (preg_match('/\bI\/[a-d]\b/i', $pangkatGol) || str_contains($pangkatGol, 'I/') || stripos($pangkatGol, 'Juru') !== false) {
+                    $tarifPersen = 0;
                 }
 
                 $pajak = round(($bruto * $tarifPersen) / 100);
@@ -157,7 +171,9 @@ class HitungPajakController extends Controller
 
                 $h->pajak_pph21 = $pajak;
                 $h->p1_netto = $netto;
-                $h->tab_pajak = ['skema' => 'TER', 'tarif' => $tarifPersen . '%', 'bruto' => $bruto];
+                $h->tab_pajak = ['skema' => 'Golongan', 'tarif' => $tarifPersen . '%', 'golongan' => $pangkatGol, 'bruto' => $bruto];
+                $h->slip_terbit_at = $now; // Penerbitan Slip P1 Netto otomatis saat disahkan
+                $h->amprah_terbit_at = $now;
                 $h->save();
 
                 $totalPajak += $pajak;
@@ -165,7 +181,8 @@ class HitungPajakController extends Controller
             }
 
             $statusSebelum = $pengajuan->status;
-            $pengajuan->status = 'netto_ditetapkan';
+            // Status disahkan (approval bertingkat final)
+            $pengajuan->status = 'disahkan';
             $pengajuan->save();
 
             // Catat riwayat status
@@ -173,26 +190,26 @@ class HitungPajakController extends Controller
                 'pengajuan_id' => $pengajuan->id,
                 'NIP' => $user->NIP,
                 'dari_status' => $statusSebelum,
-                'ke_status' => 'netto_ditetapkan',
-                'catatan_alasan' => $validated['catatan'] ?? 'Penghitungan pajak TER dan penetapan P1 Netto selesai oleh UPT Remunerasi.',
-                'dicatat_at' => Carbon::now(),
+                'ke_status' => 'disahkan',
+                'catatan_alasan' => $validated['catatan'] ?? 'Approval bertingkat UPT selesai. Lembar verifikasi dan slip P1 netto resmi diterbitkan.',
+                'dicatat_at' => $now,
             ]);
 
             // Catat audit log
             AuditLog::create([
                 'NIP' => $user->NIP,
                 'unit_id' => $pengajuan->unit_id,
-                'aksi' => 'Penetapan Pajak & P1 Netto',
+                'aksi' => 'Pengesahan P1 & Penerbitan Slip Netto',
                 'objek_type' => 'PengajuanP1',
                 'objek_id' => $pengajuan->id,
                 'nilai_sebelum' => ['status' => $statusSebelum],
-                'nilai_sesudah' => ['status' => 'netto_ditetapkan', 'total_pajak' => $totalPajak, 'total_netto' => $totalNetto],
-                'alasan' => $validated['catatan'] ?? 'Penetapan P1 Netto definitif',
-                'dicatat_at' => Carbon::now(),
+                'nilai_sesudah' => ['status' => 'disahkan', 'total_pajak' => $totalPajak, 'total_netto' => $totalNetto],
+                'alasan' => $validated['catatan'] ?? 'Approval bertingkat UPT Remunerasi',
+                'dicatat_at' => $now,
             ]);
 
             return response()->json([
-                'message' => 'P1 Netto unit ' . $pengajuan->unitKerja?->nama . ' berhasil ditetapkan.',
+                'message' => 'Pengajuan P1 unit ' . $pengajuan->unitKerja?->nama . ' berhasil disahkan dan slip P1 netto telah diterbitkan.',
                 'pengajuan' => [
                     'id' => $pengajuan->id,
                     'status' => $pengajuan->status,
@@ -202,5 +219,65 @@ class HitungPajakController extends Controller
                 ],
             ]);
         });
+    }
+
+    /**
+     * Data Lembar Verifikasi Resmi UPT (Format Page 1 PDF)
+     */
+    public function lembarVerifikasi(Request $request, string $id): JsonResponse
+    {
+        $this->authorizeUpt($request);
+
+        $pengajuan = PengajuanP1::with(['unitKerja', 'hasilPerhitungan'])->findOrFail($id);
+        $user = $request->user();
+
+        $totalPenerima = $pengajuan->hasilPerhitungan()->count();
+        $totalKotor = (float) $pengajuan->total_bruto;
+
+        $namaKetua = $user->nama ?? 'Ketua UPT Remunerasi';
+        $nipKetua = $user->NIP ?? '197501012000031001';
+
+        $periodeStr = match ($pengajuan->periode) {
+            '2026-10' => 'Oktober 2026',
+            '2026-09' => 'September 2026',
+            '2026-08' => 'Agustus 2026',
+            '2026-07' => 'Juli 2026',
+            default => $pengajuan->periode,
+        };
+
+        $tglVerif = Carbon::parse($pengajuan->updated_at ?? now())->translatedFormat('d F Y');
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'kop' => [
+                    'kementerian' => 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS DAN TEKNOLOGI',
+                    'universitas' => 'UNIVERSITAS ANDALAS',
+                    'upt' => 'UPT REMUNERASI',
+                    'alamat' => 'Gedung Rektorat, Limau Manis Padang Kode Pos 25163',
+                    'kontak' => 'Telepon : 0751-71181,71175,71086,71087,71699 Faksimile : 0751-71085',
+                    'web_email' => 'Website: www.unand.ac.id  e-mail : sekretariatrektor@unand.ac.id',
+                ],
+                'judul' => 'LEMBAR VERIFIKASI',
+                'pejabat' => [
+                    'nama' => $namaKetua,
+                    'nip' => $nipKetua,
+                    'jabatan' => 'Ketua UPT Remunerasi Universitas Andalas',
+                ],
+                'pengajuan' => [
+                    'id' => $pengajuan->id,
+                    'nomor_pengajuan' => $pengajuan->nomor_pengajuan,
+                    'unit' => $pengajuan->unitKerja?->nama ?? 'Unit Kerja',
+                    'periode' => $periodeStr,
+                    'jumlah_penerima' => $totalPenerima,
+                    'jumlah_kotor' => $totalKotor,
+                    'kelompok' => 'Tenaga Kependidikan',
+                ],
+                'titimangsa' => [
+                    'tempat' => 'Padang',
+                    'tanggal' => $tglVerif,
+                ],
+            ],
+        ]);
     }
 }

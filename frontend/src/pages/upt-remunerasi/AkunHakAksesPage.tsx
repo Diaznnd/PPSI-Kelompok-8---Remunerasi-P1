@@ -31,14 +31,12 @@ import {
   type ColumnDef,
 } from "./components"
 import {
-  akunPenggunaInitial,
   daftarPegawai,
   unitKerja,
-  auditUPT,
   type AkunUserItem,
   type PeranTambahan,
   type StatusEntitas,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 import { PenugasanPeranSection } from "./PenugasanUnitPage"
 import { MatriksHakAksesSection } from "./HakAksesPage"
@@ -103,14 +101,12 @@ export default function AkunHakAksesPage() {
           }))
           setData(mappedData)
         } else {
-          // Fallback to dummy data if API fails
-          console.warn("API returned no data, using dummy fallback")
-          setData(akunPenggunaInitial)
+          setData([])
         }
       } catch (error) {
         console.error("Error fetching akun list:", error)
-        toast.error("Gagal memuat daftar akun. Menggunakan data dummy.")
-        setData(akunPenggunaInitial)
+        toast.error("Gagal memuat daftar akun.")
+        setData([])
       } finally {
         setLoading(false)
       }

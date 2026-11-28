@@ -10,11 +10,7 @@ import {
   Input,
   type ColumnDef,
 } from "./components"
-import {
-  usulanJabatanDetailList,
-  unitKerja,
-  type UsulanJabatanDetailItem,
-} from "@/data/dummy-upt"
+import type { UsulanJabatanDetailItem } from "@/types/upt"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 
 export default function PenetapanJabatanPage() {
@@ -51,9 +47,8 @@ export default function PenetapanJabatanPage() {
       setUsulanList(mappedData)
     } catch (error) {
       console.error("Error fetching usulan:", error)
-      toast.error("Gagal memuat usulan. Menggunakan data dummy.")
-      // Fallback to dummy data
-      setUsulanList(usulanJabatanDetailList)
+      toast.error("Gagal memuat usulan.")
+      setUsulanList([])
     } finally {
       setLoading(false)
     }
@@ -204,9 +199,9 @@ export default function PenetapanJabatanPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Unit Kerja</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {Array.from(new Set(usulanList.map((u) => u.unit).filter(Boolean))).map((u) => (
+              <option key={u} value={u}>
+                {u}
               </option>
             ))}
           </select>

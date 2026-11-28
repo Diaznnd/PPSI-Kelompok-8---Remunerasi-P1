@@ -30,7 +30,7 @@ import {
   daftarPegawai,
   type AnggotaUPTItem,
   type StatusAnggotaUPT,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 
 const STATUS_BADGE_MAP: Record<StatusAnggotaUPT, { label: string; className: string }> = {

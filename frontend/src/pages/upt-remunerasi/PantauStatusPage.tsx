@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { ArrowRight, History, Info } from "lucide-react"
 import {
   PageHeader,
@@ -16,14 +16,12 @@ import {
   DataTable,
 } from "./components"
 import {
-  pengajuanUPT,
-  usulanJabatanDetailList,
-  periodeUPT,
-  unitKerja,
   type UPTPengajuan,
   type UsulanJabatanDetailItem,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
+import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { Badge } from "@/components/ui/badge"
+import { generatePeriodeList } from "@/lib/format"
 
 function getStepIndex(status: UPTPengajuan["status"]): number {
   switch (status) {
@@ -41,32 +39,58 @@ function getStepIndex(status: UPTPengajuan["status"]): number {
 export default function PantauStatusUPTPage() {
   const { periode: activePeriode } = usePeriode()
   const [activeTab, setActiveTab] = useState<"pengajuan" | "jabatan">("pengajuan")
-  const [periodeFilter, setPeriodeFilter] = useState(activePeriode || "Oktober 2026")
+  const [periodeFilter, setPeriodeFilter] = useState("semua")
   const [unitFilter, setUnitFilter] = useState("semua")
   const [statusFilter, setStatusFilter] = useState("semua")
+  
+  // Generate period list dynamically
+  const periodeUPT = useMemo(() => generatePeriodeList(12), [])
 
-  const [selectedPengajuan, setSelectedPengajuan] = useState<UPTPengajuan>(pengajuanUPT[0])
+  const [pengajuanList, setPengajuanList] = useState<UPTPengajuan[]>([])
+  const [usulanList, setUsulanList] = useState<UsulanJabatanDetailItem[]>([])
+
+  const [selectedPengajuan, setSelectedPengajuan] = useState<UPTPengajuan | null>(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
 
   const [selectedUsulan, setSelectedUsulan] = useState<UsulanJabatanDetailItem | null>(null)
   const [isUsulanDrawerOpen, setIsUsulanDrawerOpen] = useState(false)
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [monitoringRes, usulanRes] = await Promise.all([
+          uptRemunerasiService.getMonitoringStatus(periodeFilter),
+          uptRemunerasiService.getPenetapanJabatanList(),
+        ])
+        if (monitoringRes?.data && Array.isArray(monitoringRes.data)) {
+          setPengajuanList(monitoringRes.data)
+        }
+        if (usulanRes?.data && Array.isArray(usulanRes.data)) {
+          setUsulanList(usulanRes.data)
+        }
+      } catch (err) {
+        console.error("Gagal memuat monitoring:", err)
+      }
+    }
+    fetchData()
+  }, [periodeFilter])
+
   const filteredPengajuan = useMemo(() => {
-    return pengajuanUPT.filter((item) => {
+    return pengajuanList.filter((item) => {
       const matchPeriode = periodeFilter === "semua" || item.periode === periodeFilter
       const matchUnit = unitFilter === "semua" || item.unit === unitFilter
       const matchStatus = statusFilter === "semua" || item.status === statusFilter
       return matchPeriode && matchUnit && matchStatus
     })
-  }, [periodeFilter, unitFilter, statusFilter])
+  }, [pengajuanList, periodeFilter, unitFilter, statusFilter])
 
   const filteredUsulan = useMemo(() => {
-    return usulanJabatanDetailList.filter((item) => {
+    return usulanList.filter((item) => {
       const matchUnit = unitFilter === "semua" || item.unit === unitFilter
       const matchStatus = statusFilter === "semua" || item.status === statusFilter
       return matchUnit && matchStatus
     })
-  }, [unitFilter, statusFilter])
+  }, [usulanList, unitFilter, statusFilter])
 
   const pengajuanColumns: ColumnDef<UPTPengajuan>[] = [
     {
@@ -293,9 +317,9 @@ export default function PantauStatusUPTPage() {
             className="h-9 rounded-md border border-input bg-background px-3 text-xs"
           >
             <option value="semua">Semua Unit Kerja</option>
-            {unitKerja.map((u) => (
-              <option key={u.kode} value={u.nama}>
-                {u.nama}
+            {Array.from(new Set(pengajuanList.map((p) => p.unit).concat(usulanList.map((u) => u.unit)).filter(Boolean))).map((u) => (
+              <option key={u} value={u}>
+                {u}
               </option>
             ))}
           </select>
@@ -357,10 +381,10 @@ export default function PantauStatusUPTPage() {
       )}
 
       <DetailDrawer
-        open={isDrawerOpen}
+        open={isDrawerOpen && !!selectedPengajuan}
         onClose={() => setIsDrawerOpen(false)}
-        title={`Riwayat Pengajuan ${selectedPengajuan.id}`}
-        subtitle={`${selectedPengajuan.unit} • ${selectedPengajuan.periode}`}
+        title={selectedPengajuan ? `Riwayat Pengajuan ${selectedPengajuan.id}` : "Riwayat Pengajuan"}
+        subtitle={selectedPengajuan ? `${selectedPengajuan.unit} • ${selectedPengajuan.periode}` : ""}
         size="md"
         footer={
           <Button variant="outline" onClick={() => setIsDrawerOpen(false)}>
@@ -368,24 +392,28 @@ export default function PantauStatusUPTPage() {
           </Button>
         }
       >
-        <DrawerSummaryCard
-          items={[
-            { label: "Nomor Pengajuan", value: selectedPengajuan.id, mono: true },
-            { label: "Unit Kerja", value: selectedPengajuan.unit },
-            { label: "Periode", value: selectedPengajuan.periode },
-            { label: "Jumlah Pegawai", value: `${selectedPengajuan.pegawai} orang` },
-          ]}
-          totalLabel="Total Bruto"
-          totalValue={<RupiahText value={selectedPengajuan.total} className="font-semibold text-emerald-700" />}
-        />
+        {selectedPengajuan && (
+          <>
+            <DrawerSummaryCard
+              items={[
+                { label: "Nomor Pengajuan", value: selectedPengajuan.id, mono: true },
+                { label: "Unit Kerja", value: selectedPengajuan.unit },
+                { label: "Periode", value: selectedPengajuan.periode },
+                { label: "Jumlah Pegawai", value: `${selectedPengajuan.pegawai} orang` },
+              ]}
+              totalLabel="Total Bruto"
+              totalValue={<RupiahText value={selectedPengajuan.total} className="font-semibold text-emerald-700" />}
+            />
 
-        {selectedPengajuan.catatan && (
-          <WarningBanner variant="info" title="Catatan / Alasan Pengembalian">
-            <div className="flex items-start gap-2">
-              <Info className="mt-0.5 size-4 shrink-0" />
-              <span>{selectedPengajuan.catatan}</span>
-            </div>
-          </WarningBanner>
+            {selectedPengajuan.catatan && (
+              <WarningBanner variant="info" title="Catatan / Alasan Pengembalian">
+                <div className="flex items-start gap-2">
+                  <Info className="mt-0.5 size-4 shrink-0" />
+                  <span>{selectedPengajuan.catatan}</span>
+                </div>
+              </WarningBanner>
+            )}
+          </>
         )}
 
         {[...timelineRounds].reverse().map((round, revIdx) => {

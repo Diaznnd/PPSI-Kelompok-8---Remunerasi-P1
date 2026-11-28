@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, Info, MessageSquare, Receipt, User } from "lucide-react"
 import { Field, Panel, PanelTitle } from "@/components/pegawai/shared"
@@ -13,23 +13,53 @@ import {
   WarningBanner,
   type ColumnDef,
 } from "../components"
-import {
-  profilSaya,
-  daftarSlipSaya,
-  getPengaduanSayaList,
-  type SlipSayaItem,
-} from "@/data/dummy-upt-saya"
+import type { SlipSayaItem } from "@/types/pegawai"
+import { pegawaiService } from "@/services/pegawaiService"
+import { useAuth } from "@/context/AuthContext"
 import { SayaChip } from "./SayaChip"
 
 export default function BerandaSayaPage() {
-  const [loading] = useState(false)
-  const [error] = useState<string | null>(null)
+  const { akun: user } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [slips, setSlips] = useState<SlipSayaItem[]>([])
+  const [pengaduanList, setPengaduanList] = useState<any[]>([])
 
-  const slipTerbaru = daftarSlipSaya.find((s) => s.status === "terbit") ?? daftarSlipSaya[0]
-  const slipBerjalan = daftarSlipSaya[0]
-  const tigaSlipTerakhir = daftarSlipSaya.filter((s) => s.status === "terbit").slice(0, 3)
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [slipData, pengaduanData] = await Promise.all([
+          pegawaiService.getSlips().catch(() => []),
+          pegawaiService.getPengaduanList().catch(() => []),
+        ])
+        if (Array.isArray(slipData)) setSlips(slipData as any)
+        if (Array.isArray(pengaduanData)) setPengaduanList(pengaduanData)
+      } catch (err: any) {
+        setError(err.message || "Gagal memuat data")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
 
-  const pengaduanList = getPengaduanSayaList()
+  const profilSaya = {
+    nama: user?.nama || user?.name || "Pegawai",
+    inisial: (user?.nama || user?.name || "P").substring(0, 2).toUpperCase(),
+    nip: user?.NIP || user?.nip || "-",
+    unit: user?.unit?.nama || user?.unit_kerja || "UPT Remunerasi",
+    jabatan: user?.jabatan || "Pengelola Remunerasi Ahli Pertama",
+    grade: user?.grade || 9,
+    nilaiJabatan: user?.nilai_jabatan || 1453,
+    statusKepegawaian: user?.status_kepegawaian || "PNS",
+    pengaliStatus: 100,
+  }
+
+  const slipTerbaru = slips.find((s) => s.status === "terbit") ?? slips[0]
+  const slipBerjalan = slips[0]
+  const tigaSlipTerakhir = slips.filter((s) => s.status === "terbit").slice(0, 3)
+
   const pengaduanAktif = pengaduanList.filter((p) => p.status !== "Selesai")
   const pengaduanTerbaru = pengaduanAktif[0] ?? pengaduanList[0]
 
@@ -115,9 +145,9 @@ export default function BerandaSayaPage() {
                   ? `Periode berjalan (${slipBerjalan.periode}): Slip periode ini belum terbit.`
                   : "Slip P1 terakhir yang telah terbit."
               }
-              right={<StatusBadge status={slipTerbaru.status} />}
+              right={slipTerbaru ? <StatusBadge status={slipTerbaru.status} /> : null}
             />
-            {slipTerbaru.status === "terbit" ? (
+            {slipTerbaru && slipTerbaru.status === "terbit" ? (
               <div className="rounded-xl border bg-muted/30 p-4">
                 <p className="text-xs text-muted-foreground">Periode {slipTerbaru.periode}</p>
                 <p className="mt-1 text-2xl font-bold text-emerald-700">
@@ -132,11 +162,13 @@ export default function BerandaSayaPage() {
             )}
           </div>
           <div className="flex justify-end">
-            <Button asChild>
-              <Link to={`/upt-remunerasi/slip-saya/${slipTerbaru.id}`}>
-                Lihat Slip <ArrowRight className="ml-2 size-4" />
-              </Link>
-            </Button>
+            {slipTerbaru ? (
+              <Button asChild>
+                <Link to={`/upt-remunerasi/slip-saya/${slipTerbaru.id}`}>
+                  Lihat Slip <ArrowRight className="ml-2 size-4" />
+                </Link>
+              </Button>
+            ) : null}
           </div>
         </Panel>
 

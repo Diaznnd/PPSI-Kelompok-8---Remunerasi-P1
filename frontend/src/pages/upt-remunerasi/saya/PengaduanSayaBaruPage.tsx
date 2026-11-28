@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ArrowLeft, CheckCircle2, Info, Paperclip, Send, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
@@ -11,16 +11,13 @@ import {
   ConfirmDialog,
   WarningBanner,
 } from "../components"
-import { periodeUPT } from "@/data/dummy-upt"
 import {
-  addPengaduanSaya,
-  getPengaduanSayaList,
   KATEGORI_PENGADUAN_SAYA,
-  profilSaya,
   type KategoriPengaduanSaya,
-  type PengaduanSayaItem,
-} from "@/data/dummy-upt-saya"
+} from "@/types/pegawai"
+import { pegawaiService } from "@/services/pegawaiService"
 import { SayaChip } from "./SayaChip"
+import { generatePeriodeList } from "@/lib/format"
 
 interface LampiranDraft {
   nama: string
@@ -31,6 +28,9 @@ export default function PengaduanSayaBaruPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const navState = (location.state as { periode?: string; kategori?: KategoriPengaduanSaya } | null) ?? null
+  
+  // Generate period list dynamically
+  const periodeUPT = useMemo(() => generatePeriodeList(12), [])
 
   const [kategori, setKategori] = useState<KategoriPengaduanSaya>(
     navState?.kategori ?? "Data presensi atau kehadiran"
@@ -94,61 +94,22 @@ export default function PengaduanSayaBaruPage() {
     setConfirmKirimOpen(true)
   }
 
-  const handleConfirmKirim = () => {
-    const existing = getPengaduanSayaList()
-    const nextNum = 42 + existing.length
-    const nomorBaru = `UA-UPT-2026-00${nextNum}`
-    const waktuSekarang = "15 Nov 2026, 21.15 WIB"
+  const handleConfirmKirim = async () => {
+    const nomorBaru = `ADU-${Date.now().toString().slice(-6)}`
 
-    const itemBaru: PengaduanSayaItem = {
-      nomor: nomorBaru,
-      tanggal: "15 Nov 2026",
-      kategori,
-      periode,
-      judul: judul.trim(),
-      uraian: uraian.trim(),
-      lampiran,
-      status: "Diajukan",
-      dieskalasi: false,
-      linimasa: [
-        {
-          tahap: "Diajukan",
-          selesai: true,
-          pelaku: profilSaya.nama,
-          waktu: waktuSekarang,
-          catatan: "Pengaduan berhasil dikirim oleh pegawai.",
-        },
-        {
-          tahap: "Ditindaklanjuti",
-          selesai: false,
-          pelaku: `Bidang Kepegawaian ${profilSaya.unit}`,
-          waktu: "-",
-          catatan: "Menunggu peninjauan Bidang Kepegawaian unit.",
-        },
-        {
-          tahap: "Selesai",
-          selesai: false,
-          pelaku: `Bidang Kepegawaian ${profilSaya.unit}`,
-          waktu: "-",
-          catatan: "Menunggu penyelesaian.",
-        },
-      ],
-      pesan: [
-        {
-          id: `psn-${Date.now()}`,
-          pengirim: profilSaya.nama,
-          peran: "Pegawai Pengaju",
-          waktu: waktuSekarang,
-          isi: uraian.trim(),
-          lampiran: lampiran[0]?.nama,
-        },
-      ],
+    try {
+      await pegawaiService.kirimPengaduan({
+        kategori,
+        judul: judul.trim(),
+        deskripsi: uraian.trim(),
+      })
+      setConfirmKirimOpen(false)
+      setSubmittedNomor(nomorBaru)
+      toast.success(`Pengaduan ${nomorBaru} berhasil dikirim.`)
+    } catch (err) {
+      console.error(err)
+      toast.error("Gagal mengirim pengaduan.")
     }
-
-    addPengaduanSaya(itemBaru)
-    setConfirmKirimOpen(false)
-    setSubmittedNomor(nomorBaru)
-    toast.success(`Pengaduan ${nomorBaru} berhasil dikirim.`)
   }
 
   const handleBatalClick = () => {

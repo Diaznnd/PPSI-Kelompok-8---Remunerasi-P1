@@ -1,7 +1,7 @@
 import { Archive, BarChart3, FileText, Gauge, History, LayoutGrid, MessageSquare } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 import PortalShell from "@/layouts/PortalShell"
-import { bendahara } from "@/data/dummy-bendahara"
+import { NavbarTimePhaseIndicator } from "@/components/NavbarTimePhaseIndicator"
 
 const NAV_BENDAHARA = [
   { to: "/bendahara/dashboard", label: "Beranda", icon: Gauge },
@@ -20,15 +20,17 @@ const NAV_PORTAL_PEGAWAI = [
 export default function BendaharaShell() {
   const { akun } = useAuth()
 
-  const nama = akun?.nama || bendahara.nama
-  const inisial = nama
-    .split(" ")
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "BD"
+  const nama = akun?.nama || akun?.username || "Bendahara Unit"
+  const inisial =
+    nama
+      .split(" ")
+      .filter((s) => s.length > 0)
+      .map((s) => s[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "BD"
 
-  const unitNama = akun?.unit_nama || "Fakultas Teknologi Informasi"
+  const unitNama = akun?.unit_nama || "Unit Kerja"
 
   return (
     <PortalShell
@@ -38,6 +40,7 @@ export default function BendaharaShell() {
         title: "PORTAL MANDIRI PEGAWAI",
         items: NAV_PORTAL_PEGAWAI,
       }}
+      headerLeft={<NavbarTimePhaseIndicator />}
       user={{
         nama,
         inisial,
@@ -47,4 +50,3 @@ export default function BendaharaShell() {
     />
   )
 }
-

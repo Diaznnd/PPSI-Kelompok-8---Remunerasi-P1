@@ -23,18 +23,24 @@ import {
   DrawerSummaryCard,
   DrawerTimeline,
   WarningBanner,
-  Toast,
   type ColumnDef,
 } from "./components"
+import { rupiah } from "@/lib/format"
 import {
-  tarifPajakMock,
-  rupiah,
   type ParameterItem,
-  type StatusParameter,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Label } from "@/components/ui/label"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { toast } from "sonner"
+
+interface TarifPajakItem {
+  id: number
+  kategori: string
+  brutoMin: number
+  brutoMax: number
+  tarif: string
+  tarifDecimal: number
+}
 
 const KELOMPOK_LIST = [
   { id: "Umum", nama: "Umum (PIR & % P1)", icon: Percent },
@@ -54,6 +60,8 @@ export default function ParameterRemunerasiPage() {
   const [loading, setLoading] = useState(true)
   const [selectedKelompok, setSelectedKelompok] = useState<KelompokKey>("Umum")
   const [parameters, setParameters] = useState<ParameterItem[]>([])
+  const [tarifPajakList, setTarifPajakList] = useState<TarifPajakItem[]>([])
+  const [loadingTarifPajak, setLoadingTarifPajak] = useState(false)
 
   const [historyParam, setHistoryParam] = useState<ParameterItem | null>(null)
 
@@ -69,6 +77,12 @@ export default function ParameterRemunerasiPage() {
   useEffect(() => {
     loadParameters()
   }, [])
+  
+  useEffect(() => {
+    if (selectedKelompok === "Pajak") {
+      loadTarifPajak()
+    }
+  }, [selectedKelompok])
 
   const loadParameters = async () => {
     try {
@@ -101,6 +115,19 @@ export default function ParameterRemunerasiPage() {
       setParameters([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadTarifPajak = async () => {
+    try {
+      setLoadingTarifPajak(true)
+      const res = await uptRemunerasiService.getTarifPajak()
+      setTarifPajakList(res.data || [])
+    } catch (error) {
+      console.error("Failed to load tarif pajak:", error)
+      toast.error("Gagal memuat data tarif pajak")
+    } finally {
+      setLoadingTarifPajak(false)
     }
   }
 
@@ -285,7 +312,7 @@ export default function ParameterRemunerasiPage() {
     },
   ]
 
-  const pajakColumns: ColumnDef<(typeof tarifPajakMock)[0]>[] = [
+  const pajakColumns: ColumnDef<TarifPajakItem>[] = [
     { header: "Kategori TER PPh 21", accessorKey: "kategori", className: "font-semibold text-xs" },
     {
       header: "Rentang Penghasilan Bruto",
@@ -378,7 +405,17 @@ export default function ParameterRemunerasiPage() {
               <h4 className="font-semibold text-xs text-muted-foreground uppercase">
                 Simulasi Matriks Tarif Efektif Rata-Rata (TER 2024)
               </h4>
-              <DataTable columns={pajakColumns} data={tarifPajakMock} pageSize={5} />
+              {loadingTarifPajak ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : tarifPajakList.length > 0 ? (
+                <DataTable columns={pajakColumns} data={tarifPajakList} pageSize={10} />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground text-sm">
+                  Data tarif pajak belum tersedia
+                </div>
+              )}
             </div>
           )}
         </div>

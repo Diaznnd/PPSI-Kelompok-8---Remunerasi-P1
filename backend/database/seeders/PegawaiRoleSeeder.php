@@ -254,7 +254,7 @@ class PegawaiRoleSeeder extends Seeder
             ['role_id' => $akun4->id, 'unit_id' => $upt->id, 'peran' => 'pegawai'],
 
             // Akun 5: Dekan FTI (PJ Unit FTI + Pegawai)
-            ['role_id' => $akun5->id, 'unit_id' => $fti->id, 'peran' => 'pj_unit'],
+            ['role_id' => $akun5->id, 'unit_id' => $fti->id, 'peran' => 'penanggung_jawab'],
             ['role_id' => $akun5->id, 'unit_id' => $fti->id, 'peran' => 'pegawai'],
 
             // Akun 6: Hendra (UPT Remunerasi Pusat + Pegawai)

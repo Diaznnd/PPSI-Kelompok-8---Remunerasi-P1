@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { FilterSelect, StatusVerifBadge, Tag, TH } from "@/components/verifikator/shared"
-import type { RiwayatKejadian, StatusVerif } from "@/data/dummy-verifikator"
+import type { RiwayatKejadian, StatusVerif } from "@/types/verifikator"
 import { usePengajuan, useUsulan } from "@/data/store-verifikator"
 import { cn } from "@/lib/utils"
 
@@ -17,7 +17,7 @@ export default function PantauStatusPage() {
   const [tab, setTab] = useState<"p1" | "jbg">("p1")
   const pengajuan = usePengajuan()
   const usulan = useUsulan()
-  const [periode, setPeriode] = useState("September 2026")
+  const [periode, setPeriode] = useState("semua")
   const [unit, setUnit] = useState("semua")
   const [status, setStatus] = useState("semua")
   const [pilih, setPilih] = useState<Baris | null>(null)
@@ -30,7 +30,7 @@ export default function PantauStatusPage() {
   )
   const rows = semua.filter((r) => (periode === "semua" || r.periode === periode) && (unit === "semua" || r.unit === unit) && (status === "semua" || r.status === status))
 
-  const ganti = (t: "p1" | "jbg") => { setTab(t); setPeriode(t === "p1" ? "September 2026" : "semua"); setUnit("semua"); setStatus("semua") }
+  const ganti = (t: "p1" | "jbg") => { setTab(t); setPeriode("semua"); setUnit("semua"); setStatus("semua") }
   const ke = pilih ? [...new Set(pilih.riwayat.map((r) => r.ke))] : []
 
   return (

@@ -3,7 +3,7 @@ export type Peran =
   | "kepegawaian"
   | "bendahara"
   | "verifikator"
-  | "pj_unit"
+  | "penanggung_jawab"
   | "upt_remunerasi"
 
 export const labelPeran: Record<Peran, string> = {
@@ -11,7 +11,7 @@ export const labelPeran: Record<Peran, string> = {
   kepegawaian: "Kepegawaian",
   bendahara: "Bendahara",
   verifikator: "Verifikator",
-  pj_unit: "Penanggung Jawab Unit",
+  penanggung_jawab: "Penanggung Jawab Unit",
   upt_remunerasi: "UPT Remunerasi",
 }
 
@@ -20,6 +20,6 @@ export const prefixPeran: Record<Peran, string> = {
   kepegawaian: "/kepegawaian",
   bendahara: "/bendahara",
   verifikator: "/verifikator",
-  pj_unit: "/pj-unit",
+  penanggung_jawab: "/pj-unit",
   upt_remunerasi: "/upt-remunerasi",
 }

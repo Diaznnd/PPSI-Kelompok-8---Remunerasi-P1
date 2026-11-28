@@ -25,7 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 import { useToast } from "@/hooks/use-toast"
-import { rupiah } from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
 
 function MiniStepper({ status }: { status: string }) {
   const step =

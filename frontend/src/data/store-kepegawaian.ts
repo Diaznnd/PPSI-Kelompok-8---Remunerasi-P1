@@ -1,103 +1,245 @@
-import { useSyncExternalStore } from "react"
-import {
-  ADUAN_SEED, HUKUMAN_SEED, IMPOR_SEED, PEGAWAI_SEED, PRESENSI_SEED, STATUS_IMPOR_SEED, USULAN_SEED, kepeg, tglID,
-  type AduanKep, type BarisPresensi, type Hukuman, type PegawaiKep, type RiwayatImpor, type StatusImpor, type UsulanKep,
-} from "./dummy-kepegawaian"
+import { useEffect, useState } from "react"
+import { kepegawaianService } from "@/services/kepegawaianService"
+import type {
+  AduanKep,
+  BarisPresensi,
+  Hukuman,
+  PegawaiKep,
+  RiwayatImpor,
+  StatusImpor,
+  UsulanKep,
+} from "@/types/kepegawaian"
 
-// Penyimpanan DEMO untuk role Kepegawaian (tanpa backend). Semua halaman membaca dari sini,
-// jadi perubahan di satu halaman langsung terlihat di halaman lain. Disimpan di localStorage.
-// Ganti dengan panggilan api saat backend siap.
-
-type State = {
-  pegawai: PegawaiKep[]; usulan: UsulanKep[]; presensi: BarisPresensi[]
-  riwayatImpor: RiwayatImpor[]; statusImpor: StatusImpor; hukuman: Hukuman[]; pengaduan: AduanKep[]
+export const resetKepegawaian = () => {
+  // No-op for real database
 }
 
-const KEY = "siremun_kepegawaian_v1"
-const awal = (): State => structuredClone({
-  pegawai: PEGAWAI_SEED, usulan: USULAN_SEED, presensi: PRESENSI_SEED, riwayatImpor: IMPOR_SEED,
-  statusImpor: STATUS_IMPOR_SEED, hukuman: HUKUMAN_SEED, pengaduan: ADUAN_SEED,
-})
-function muat(): State {
-  try { const raw = localStorage.getItem(KEY); return raw ? { ...awal(), ...JSON.parse(raw) } : awal() } catch { return awal() }
-}
+export function useKepeg() {
+  const [pegawai, setPegawai] = useState<PegawaiKep[]>([])
+  const [usulan, setUsulan] = useState<UsulanKep[]>([])
+  const [presensi, setPresensi] = useState<BarisPresensi[]>([])
+  const [hukuman, setHukuman] = useState<Hukuman[]>([])
+  const [pengaduan, setPengaduan] = useState<AduanKep[]>([])
+  const [riwayatImpor] = useState<RiwayatImpor[]>([])
+  const [statusImpor] = useState<StatusImpor>({
+    periode: "Oktober 2026",
+    pegawai: 0,
+    error: 0,
+    waktu: "-",
+  })
 
-let state: State = muat()
-const pendengar = new Set<() => void>()
-const beritahu = () => pendengar.forEach((l) => l())
-function ubah(fn: (s: State) => State) {
-  state = fn(state)
-  try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* tetap jalan di memori */ }
-  beritahu()
-}
-if (typeof window !== "undefined") window.addEventListener("storage", (e) => { if (e.key === KEY) { state = muat(); beritahu() } })
-const subscribe = (l: () => void) => { pendengar.add(l); return () => { pendengar.delete(l) } }
-export const useKepeg = () => useSyncExternalStore(subscribe, () => state)
+  useEffect(() => {
+    kepegawaianService
+      .getPegawaiList()
+      .then((res) => {
+        if (res?.data) {
+          setPegawai(
+            res.data.map((p: any) => ({
+              nip: p.NIP || p.nip,
+              nama: p.nama,
+              email: p.email || "",
+              jenis: p.jenis,
+              status: p.status_kepegawaian || p.status,
+              golongan: p.pangkat_golongan || p.golongan,
+              jabatan: p.jabatan?.nama_jabatan || p.jabatan || "",
+              grade: p.jabatan?.grade?.kode_grade || p.grade || 0,
+              tmt: p.tmt || "",
+              aktif: Boolean(p.aktif),
+              alasanNonaktif: p.alasan_nonaktif,
+            }))
+          )
+        }
+      })
+      .catch(() => setPegawai([]))
 
-const dua = (n: number) => String(n).padStart(2, "0")
-const sekarang = () => {
-  const d = new Date()
-  const tgl = d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
-  return { tgl, jam: `${dua(d.getHours())}.${dua(d.getMinutes())}` }
-}
-const stempel = () => { const { tgl, jam } = sekarang(); return `${tgl} pukul ${jam}` }
-const OLEH = `${kepeg.nama.replace(/, S\.Sos\./, "")} (Bidang Kepegawaian)`
+    kepegawaianService
+      .getUsulanList()
+      .then((res) => {
+        if (res?.data) {
+          setUsulan(
+            res.data.map((u: any) => ({
+              id: u.nomor_usulan || `USL-${u.id}`,
+              nip: u.pegawai?.NIP || u.NIP || "",
+              nama: u.pegawai?.nama || "",
+              lama: {
+                jabatan: u.jabatanLama?.nama_jabatan || u.jabatan_lama || "",
+                grade: u.jabatanLama?.grade?.kode_grade || u.grade_lama || "",
+              },
+              baru: {
+                jabatan: u.jabatanBaru?.nama_jabatan || u.jabatan_baru || "",
+                grade: u.jabatanBaru?.grade?.kode_grade || u.grade_baru || "",
+              },
+              jenis: u.jenis_usulan || u.jenis || "Promosi",
+              mulai: u.tanggal_berlaku || "",
+              alasan: u.alasan || "",
+              status: u.status || "Diajukan",
+              sk: u.dokumen_sk,
+              spmt: u.dokumen_spmt,
+              jejak: [],
+              catatanKembali: u.catatan_verifikator,
+            }))
+          )
+        }
+      })
+      .catch(() => setUsulan([]))
 
-export const resetKepegawaian = () => ubah(() => awal())
+    kepegawaianService
+      .getHukumanList()
+      .then((res) => {
+        if (res?.data) {
+          setHukuman(
+            res.data.map((h: any) => ({
+              id: `HKD-${h.id}`,
+              nip: h.pegawai?.NIP || h.NIP || "",
+              nama: h.pegawai?.nama || "",
+              tingkat: h.tingkat,
+              jenis: h.jenis || "",
+              sk: h.nomor_sk || "",
+              nomor_sk: h.nomor_sk || "",
+              mulai: h.tanggal_mulai || "",
+              berakhir: h.tanggal_berakhir || "",
+              uraian: h.uraian || "",
+            }))
+          )
+        }
+      })
+      .catch(() => setHukuman([]))
 
-/* Pegawai */
-export const tambahPegawai = (p: PegawaiKep) => ubah((s) => ({ ...s, pegawai: [...s.pegawai, p] }))
-export const ubahPegawai = (nip: string, patch: Partial<PegawaiKep>) => ubah((s) => ({ ...s, pegawai: s.pegawai.map((p) => (p.nip === nip ? { ...p, ...patch } : p)) }))
-export const nonaktifkanPegawai = (nip: string, alasan: string, ket: string) =>
-  ubahPegawai(nip, { aktif: false, alasanNonaktif: ket ? `${alasan} — ${ket}` : alasan })
-export const aktifkanPegawai = (nip: string) => ubahPegawai(nip, { aktif: true, alasanNonaktif: undefined })
+    kepegawaianService
+      .getPresensiList()
+      .then((res) => {
+        if (res?.data) {
+          setPresensi(
+            res.data.map((r: any) => ({
+              nip: r.NIP || r.nip,
+              nama: r.pegawai?.nama || r.nama || "",
+              hariKerja: Number(r.hari_kerja || 22),
+              hadir: Number(r.hadir || 0),
+              tidakHadir: Number(r.tidak_hadir || 0),
+              cuti: Number(r.cuti_tahunan || 0),
+            }))
+          )
+        }
+      })
+      .catch(() => setPresensi([]))
 
-/* Usulan */
-export function tambahUsulan(a: { nip: string; jenis: string; mulaiIso: string; jabatanBaru: string; gradeBaru: number; alasan: string; sk: string; spmt: string }) {
-  const p = state.pegawai.find((x) => x.nip === a.nip)
-  if (!p) return ""
-  const id = `USL-2026-${String(40 + state.usulan.length).padStart(3, "0")}`
-  const u: UsulanKep = {
-    id, nip: p.nip, nama: p.nama, lama: { jabatan: p.jabatan, grade: p.grade }, baru: { jabatan: a.jabatanBaru, grade: a.gradeBaru },
-    jenis: a.jenis, mulai: tglID(a.mulaiIso), alasan: a.alasan, status: "Diajukan", sk: a.sk, spmt: a.spmt,
-    jejak: [{ label: "Diajukan", waktu: stempel(), oleh: OLEH }],
+    kepegawaianService
+      .getPengaduanList()
+      .then((res) => {
+        if (res?.data) {
+          setPengaduan(
+            res.data.map((a: any) => ({
+              id: String(a.id),
+              nip: a.pegawai?.NIP || a.NIP || "",
+              nama: a.pegawai?.nama || a.nama || "",
+              kategori: a.kategori,
+              deskripsi: a.deskripsi || a.isi || "",
+              tglDiajukan: a.created_at || "",
+              status: a.status || "Menunggu",
+              tanggapan: a.tanggapan_kepegawaian,
+            }))
+          )
+        }
+      })
+      .catch(() => setPengaduan([]))
+  }, [])
+
+  return {
+    pegawai,
+    usulan,
+    presensi,
+    hukuman,
+    pengaduan,
+    riwayatImpor,
+    statusImpor,
   }
-  ubah((s) => ({ ...s, usulan: [u, ...s.usulan] }))
-  return id
-}
-export const ajukanUlang = (id: string, mulaiIso: string, catatan: string) =>
-  ubah((s) => ({
-    ...s,
-    usulan: s.usulan.map((u) => u.id !== id ? u : {
-      ...u, status: "Diajukan", mulai: mulaiIso ? tglID(mulaiIso) : u.mulai, catatanKembali: undefined,
-      jejak: [...u.jejak, { label: "Diajukan ulang", waktu: stempel(), oleh: OLEH, catatan: catatan || undefined }],
-    }),
-  }))
-
-/* Presensi */
-export const koreksiPresensi = (nip: string, patch: Partial<BarisPresensi>) =>
-  ubah((s) => ({ ...s, presensi: s.presensi.map((r) => (r.nip === nip ? { ...r, ...patch } : r)) }))
-export function imporPresensi(periode: string, file: string) {
-  const { tgl, jam } = sekarang()
-  const waktu = `${tgl.replace(/(\w{3})\w*/, "$1")}, ${jam} WIB`
-  ubah((s) => ({
-    ...s,
-    statusImpor: { periode, pegawai: 84, error: 0, waktu },
-    riwayatImpor: [{ periode, file, pegawai: 84, error: 0, oleh: kepeg.nama.replace(/, S\.Sos\./, ""), durasi: "2 detik", status: "Berhasil" }, ...s.riwayatImpor],
-  }))
 }
 
-/* Hukuman */
+export const tambahPegawai = (p: PegawaiKep) => {
+  return kepegawaianService.createPegawai({
+    NIP: p.nip,
+    nama: p.nama,
+    email: p.email,
+    jenis: p.jenis,
+    status_kepegawaian: p.status,
+    pangkat_golongan: p.golongan,
+    tmt: p.tmt,
+  })
+}
+
+export const ubahPegawai = (nip: string, patch: Partial<PegawaiKep>) => {
+  return kepegawaianService.updatePegawai(nip, {
+    nama: patch.nama,
+    email: patch.email,
+    jenis: patch.jenis,
+    status_kepegawaian: patch.status,
+    pangkat_golongan: patch.golongan,
+    tmt: patch.tmt,
+  })
+}
+
+export const nonaktifkanPegawai = (nip: string, alasan: string, ket: string) => {
+  return kepegawaianService.nonaktifkanPegawai(nip, {
+    alasan: ket ? `${alasan} — ${ket}` : alasan,
+  })
+}
+
+export const aktifkanPegawai = (nip: string) => {
+  return kepegawaianService.aktifkanPegawai(nip)
+}
+
+export function tambahUsulan(a: {
+  nip: string
+  jenis: string
+  mulaiIso: string
+  jabatanBaru: string
+  gradeBaru: number
+  alasan: string
+  sk: string
+  spmt: string
+}) {
+  const formData = new FormData()
+  formData.append("NIP", a.nip)
+  formData.append("jenis_usulan", a.jenis)
+  formData.append("tanggal_berlaku", a.mulaiIso)
+  formData.append("alasan", a.alasan)
+  formData.append("jabatan_baru", a.jabatanBaru)
+  return kepegawaianService.buatUsulan(formData)
+}
+
+export const ajukanUlang = (id: string, mulaiIso: string, catatan: string) => {
+  const formData = new FormData()
+  formData.append("tanggal_berlaku", mulaiIso)
+  formData.append("catatan", catatan)
+  return kepegawaianService.ajukanUlangUsulan(id, formData)
+}
+
+export const koreksiPresensi = (nip: string, patch: Partial<BarisPresensi> & { alasan?: string }) => {
+  return kepegawaianService.koreksiPresensi(nip, {
+    hariKerja: patch.hariKerja ?? 22,
+    hadir: patch.hadir ?? 0,
+    tidakHadir: patch.tidakHadir ?? 0,
+    cuti: patch.cuti ?? 0,
+    alasan: patch.alasan ?? "Koreksi manual presensi",
+  })
+}
+
+export function imporPresensi(_periode?: string, _file?: string) {
+  // handled via kepegawaianService.importPresensi
+}
+
 export function catatHukuman(h: Omit<Hukuman, "id">) {
-  ubah((s) => ({ ...s, hukuman: [{ ...h, id: `HKD-2026-${String(5 + s.hukuman.length).padStart(3, "0")}` }, ...s.hukuman] }))
+  return kepegawaianService.tambahHukuman(h)
 }
-export const ubahHukuman = (id: string, patch: Partial<Hukuman>) => ubah((s) => ({ ...s, hukuman: s.hukuman.map((h) => (h.id === id ? { ...h, ...patch } : h)) }))
 
-/* Pengaduan */
-export const tanggapiPengaduan = (id: string, tindakan: "selesai" | "teruskan", tanggapan: string) =>
-  ubah((s) => ({
-    ...s,
-    pengaduan: s.pengaduan.map((a) => a.id !== id ? a : tindakan === "selesai"
-      ? { ...a, status: "Selesai", penanganan: "Diselesaikan di unit", tanggapan }
-      : { ...a, status: "Diteruskan", penanganan: "Diteruskan ke UPT Remunerasi", tanggapan }),
-  }))
+export const ubahHukuman = (id: string, patch: Partial<Hukuman>) => {
+  return kepegawaianService.updateHukuman(id, patch)
+}
+
+export const tanggapiPengaduan = (
+  id: string,
+  tindakan: "selesai" | "teruskan",
+  tanggapan: string
+) => {
+  return kepegawaianService.tanggapiPengaduan(id, { tindakan, tanggapan })
+}

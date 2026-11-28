@@ -91,6 +91,11 @@ class HasilPerhitungan extends Model
         return $this->belongsTo(PengajuanP1::class, 'pengajuan_id');
     }
 
+    public function pengajuan(): BelongsTo
+    {
+        return $this->pengajuanP1();
+    }
+
     public function usulanJabatan(): BelongsTo
     {
         return $this->belongsTo(UsulanJabatan::class, 'usulan_jabatan_id');

@@ -18,15 +18,15 @@ import {
   Toast,
   type ColumnDef,
 } from "./components"
+import { rupiah } from "@/lib/format"
 import {
   PIR_DEFAULT,
   PERSENTASE_P1_DEFAULT,
-  rupiah,
   type MasterGradeItem,
   type JabatanMasterItem,
   type KategoriJabatan,
   type StatusEntitas,
-} from "@/data/dummy-upt"
+} from "@/types/upt"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
@@ -82,10 +82,7 @@ export default function MasterGradePage() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [gradesRes, jabatanRes] = await Promise.all([
-        uptRemunerasiService.getMasterGrades(),
-        uptRemunerasiService.getMasterUnits(), // Note: Jabatan might have different endpoint
-      ])
+      const gradesRes = await uptRemunerasiService.getMasterGrades()
       
       // Map grades
       const mappedGrades: MasterGradeItem[] = (gradesRes.data || []).map((item: any) => ({

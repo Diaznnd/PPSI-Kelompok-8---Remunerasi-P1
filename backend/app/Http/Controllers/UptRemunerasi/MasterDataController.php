@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Grade;
 use App\Models\Jabatan;
 use App\Models\ParameterRemunerasi;
+use App\Models\TarifPajak;
 use App\Models\UnitKerja;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -174,5 +175,30 @@ class MasterDataController extends Controller
         ]);
 
         return response()->json(['message' => 'Parameter remunerasi berhasil diperbarui.', 'data' => $param]);
+    }
+
+    // ==========================================
+    // 4. TARIF PAJAK (TER - Tarif Efektif Rata-rata)
+    // ==========================================
+    public function listTarifPajak(Request $request): JsonResponse
+    {
+        $this->authorizeUpt($request);
+
+        // Get currently active tax rates
+        $tarifPajak = TarifPajak::whereNull('berlaku_sampai')
+            ->orWhere('berlaku_sampai', '>=', now())
+            ->orderBy('kategori_ter')
+            ->orderBy('bruto_min')
+            ->get()
+            ->map(fn ($t) => [
+                'id' => $t->id,
+                'kategori' => $t->kategori_ter,
+                'brutoMin' => (int) $t->bruto_min,
+                'brutoMax' => (int) $t->bruto_max,
+                'tarif' => $t->tarif,
+                'tarifDecimal' => (float) $t->tarif_decimal,
+            ]);
+
+        return response()->json(['data' => $tarifPajak]);
     }
 }

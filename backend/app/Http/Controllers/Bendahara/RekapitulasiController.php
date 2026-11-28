@@ -21,7 +21,7 @@ class RekapitulasiController extends Controller
         }
 
         $roleUnit = RoleUnit::where('role_id', $user->id)
-            ->whereIn('peran', ['bendahara', 'pj_unit'])
+            ->whereIn('peran', ['bendahara', 'penanggung_jawab'])
             ->where('aktif', true)
             ->whereNotNull('unit_id')
             ->first();
@@ -41,7 +41,7 @@ class RekapitulasiController extends Controller
     {
         /** @var \App\Models\Akun|null $user */
         $user = $request->user();
-        if (!$user || (!$user->hasRole('bendahara') && !$user->hasRole('pj_unit') && !$user->hasRole('upt_remunerasi'))) {
+        if (!$user || (!$user->hasRole('bendahara') && !$user->hasRole('penanggung_jawab') && !$user->hasRole('upt_remunerasi'))) {
             return response()->json(['message' => 'Akses ditolak.'], 403);
         }
 

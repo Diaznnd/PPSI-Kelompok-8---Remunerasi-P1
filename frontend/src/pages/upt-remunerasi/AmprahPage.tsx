@@ -23,10 +23,8 @@ import {
   Row,
   Cell,
 } from "./components"
-import {
-  rupiah,
-  type UPTPengajuan,
-} from "@/data/dummy-upt"
+import { rupiah } from "@/lib/format"
+import type { UPTPengajuan } from "@/types/upt"
 import { Badge } from "@/components/ui/badge"
 import { uptRemunerasiService } from "@/services/uptRemunerasiService"
 

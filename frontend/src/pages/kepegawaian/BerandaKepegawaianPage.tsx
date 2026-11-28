@@ -2,18 +2,15 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, Building2, CalendarCheck, Gavel, Loader2, MessageSquare, TriangleAlert, Users, type LucideIcon } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
 import { usePeriodeKepeg } from "@/layouts/KepegawaianShell"
-import { statusHukuman } from "@/data/dummy-kepegawaian"
-import { resetKepegawaian, useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 
 export default function BerandaKepegawaianPage() {
   const { periode } = usePeriodeKepeg()
-  const s = useKepeg()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<any>(null)
+  const [presensi, setPresensi] = useState<any>(null)
   const [unitKerja, setUnitKerja] = useState<string>("")
 
   useEffect(() => {
@@ -22,33 +19,26 @@ export default function BerandaKepegawaianPage() {
         setLoading(true)
         const res = await kepegawaianService.getDashboard()
         setStats(res.statistik)
+        setPresensi(res.presensi)
         setUnitKerja(res.unit_kerja)
       } catch (error) {
         console.error("Error fetching dashboard:", error)
-        toast.error("Gagal memuat dashboard. Menggunakan data dummy.")
-        // Fallback to dummy data
-        const aktif = s.pegawai.filter((p) => p.aktif).length
-        const usulanTunggu = s.usulan.filter((u) => u.status === "Diajukan").length
-        const dikembalikan = s.usulan.filter((u) => u.status === "Dikembalikan").length
-        const aduan = s.pengaduan.filter((a) => a.status === "Diajukan").length
-        const hukuman = s.hukuman.filter((h) => statusHukuman(h) === "Aktif").length
-        
+        toast.error("Gagal memuat dashboard dari database.")
         setStats({
-          pegawai_total: s.pegawai.length,
-          pegawai_aktif: aktif,
-          usulan_menunggu: usulanTunggu,
-          usulan_dikembalikan: dikembalikan,
-          pengaduan_menunggu: aduan,
-          hukuman_aktif: hukuman,
+          pegawai_total: 0,
+          pegawai_aktif: 0,
+          usulan_menunggu: 0,
+          usulan_dikembalikan: 0,
+          pengaduan_menunggu: 0,
+          hukuman_aktif: 0,
         })
-        setUnitKerja("Fakultas Teknologi Informasi")
       } finally {
         setLoading(false)
       }
     }
 
     fetchDashboard()
-  }, [s])
+  }, [])
 
   if (loading) {
     return (
@@ -71,7 +61,12 @@ export default function BerandaKepegawaianPage() {
     ["Hukuman disiplin aktif", hukuman, "Memengaruhi P1", Gavel],
   ]
   
+  const presensiDitolak = presensi?.status_approval === "ditolak"
+  const presensiMenunggu = presensi?.status_approval === "menunggu_approval"
+
   const tindakan = [
+    ...(presensiDitolak ? [{ t: `Rekap absensi ditolak PJ Unit: ${presensi?.alasan_penolakan || "Perlu perbaikan data"}`, to: "/kepegawaian/presensi", aksi: "Unggah Ulang" }] : []),
+    ...(presensiMenunggu ? [{ t: `Rekap absensi ${presensi?.periode || periode} sedang menunggu approval PJ Unit`, to: "/kepegawaian/presensi", aksi: "Lihat Status" }] : []),
     ...(dikembalikan > 0 ? [{ t: `${dikembalikan} usulan dikembalikan Verifikator`, to: "/kepegawaian/usulan", aksi: "Lihat Usulan" }] : []),
     ...(aduan > 0 ? [{ t: `${aduan} pengaduan pegawai menunggu diagnosis`, to: "/kepegawaian/pengaduan", aksi: "Tanggapi" }] : []),
   ]
@@ -86,7 +81,6 @@ export default function BerandaKepegawaianPage() {
       <PageHeading
         title="Beranda Kepegawaian"
         desc={`Ringkasan pengelolaan data sumber P1 ${unitKerja} periode ${periode}.`}
-        action={<Button variant="ghost" size="sm" onClick={() => { resetKepegawaian(); toast.success("Data demo dikembalikan ke awal.") }}>Reset data demo</Button>}
       />
       <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

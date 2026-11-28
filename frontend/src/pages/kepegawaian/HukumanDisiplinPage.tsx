@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AreaTeks, Avatar, Bidang } from "@/components/kepegawaian/ui"
 import { PageHeading, Panel } from "@/components/pegawai/shared"
-import { JENIS_HUKUMAN, TINGKAT_HUKUMAN, hariInklusif, progresHukuman, statusHukuman, tglID, type Hukuman, type StatusHukuman, type TingkatHukuman } from "@/data/dummy-kepegawaian"
+import { JENIS_HUKUMAN, TINGKAT_HUKUMAN, hariInklusif, progresHukuman, statusHukuman, tglID, type Hukuman, type StatusHukuman, type TingkatHukuman } from "@/types/kepegawaian"
 import { catatHukuman, ubahHukuman, useKepeg } from "@/data/store-kepegawaian"
 import { kepegawaianService } from "@/services/kepegawaianService"
 import { cn } from "@/lib/utils"
@@ -102,9 +102,9 @@ function FormHukuman({ hukuman, daftarPegawai, onClose, onSuccess }: { hukuman?:
 }
 
 export default function HukumanDisiplinPage() {
-  const { hukuman: hukumanDummy, pegawai: pegawaiDummy } = useKepeg()
-  const [hukuman, setHukuman] = useState<Hukuman[]>(hukumanDummy)
-  const [daftarPegawai, setDaftarPegawai] = useState<any[]>(pegawaiDummy)
+  const { hukuman: defaultHukuman, pegawai: defaultPegawai } = useKepeg()
+  const [hukuman, setHukuman] = useState<Hukuman[]>(defaultHukuman)
+  const [daftarPegawai, setDaftarPegawai] = useState<any[]>(defaultPegawai)
   const [q, setQ] = useState("")
   const [status, setStatus] = useState("semua")
   const [tingkat, setTingkat] = useState("semua")
@@ -125,8 +125,8 @@ export default function HukumanDisiplinPage() {
         })))
       }
     } catch {
-      setHukuman(hukumanDummy)
-      setDaftarPegawai(pegawaiDummy)
+      setHukuman([])
+      setDaftarPegawai([])
     }
   }
 

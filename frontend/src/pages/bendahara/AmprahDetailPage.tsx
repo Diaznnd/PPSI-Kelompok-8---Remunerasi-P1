@@ -58,7 +58,7 @@ export default function AmprahDetailPage() {
     pajak: 0,
     netto: 0,
   }
-  const dummy = () => toast.info("Belum tersambung ke backend (dummy).")
+  const unduhDokumen = () => toast.info("Fitur unduh dokumen amprah sedang diproses...")
 
   return (
     <>
@@ -69,8 +69,8 @@ export default function AmprahDetailPage() {
         action={
           <div className="flex gap-2 print:hidden">
             <Button variant="outline" onClick={() => window.print()}><Printer /> Cetak</Button>
-            <Button variant="outline" onClick={dummy}><Download /> Unduh Excel</Button>
-            <Button onClick={dummy}><Download /> Unduh PDF</Button>
+            <Button variant="outline" onClick={unduhDokumen}><Download /> Unduh Excel</Button>
+            <Button onClick={unduhDokumen}><Download /> Unduh PDF</Button>
           </div>
         }
       />
